@@ -106,7 +106,10 @@ npm run dev
 # Build for production
 npm run build
 
-Usage Flow
+```
+
+## Usage Flow
+
 Admin → Add products (brand, sub-category, name, price)
 
 Admin → Create shift templates (select brands via checkboxes)
@@ -116,4 +119,3 @@ Shifts → Create a new shift (pick template, date, time)
 Shift Edit → Tap +/- to record sales, see live summaries
 
 Export → Download CSV matching your Excel report format
-```

@@ -1,5 +1,3 @@
-## `PROGRESS.md`
-
 # Progress Log — Perfume Shift Sales Tracker
 
 ## Session: 2026-07-28/29
