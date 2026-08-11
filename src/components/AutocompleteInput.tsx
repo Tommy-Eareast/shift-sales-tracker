@@ -8,6 +8,12 @@ type AutocompleteInputProps = {
     label: string;
 };
 
+/**
+ * Input field with dropdown suggestions filtered by user input.
+ * Keyboard navigable (arrow keys + enter). Closes on outside click.
+ *
+ * Used in Admin forms for Brand and Sub Category fields.
+ */
 export default function AutocompleteInput({
     value,
     onChange,

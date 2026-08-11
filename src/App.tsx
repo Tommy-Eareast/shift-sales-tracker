@@ -1,18 +1,18 @@
 import { Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
-import ShiftList from "./pages/ShiftList";
-import ShiftEdit from "./pages/ShiftEdit";
-import ExportPage from "./pages/Export";
-import Admin from "./pages/Admin";
+import ShiftListPage from "./pages/ShiftListPage";
+import ShiftEditPage from "./pages/ShiftEditPage";
+import ExportPage from "./pages/ExportPage";
+import AdminPage from "./pages/AdminPage";
 
 function App() {
     return (
         <Routes>
             <Route element={<Layout />}>
-                <Route path="/" element={<ShiftList />} />
-                <Route path="/shift/:shiftId" element={<ShiftEdit />} />
+                <Route path="/" element={<ShiftListPage />} />
+                <Route path="/shift/:shiftId" element={<ShiftEditPage />} />
                 <Route path="/export" element={<ExportPage />} />
-                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin" element={<AdminPage />} />
             </Route>
         </Routes>
     );

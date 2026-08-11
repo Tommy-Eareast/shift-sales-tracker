@@ -41,21 +41,14 @@ class PerfumeDatabase extends Dexie {
 
 export const db = new PerfumeDatabase();
 
+/**
+ * Opens the database and seeds default data if empty.
+ * Called once on app startup from main.tsx.
+ */
 export async function initializeDatabase() {
     try {
         await db.open();
         console.log("Database initialized successfully");
-
-        // Initialize ordering config if not exists
-        const config = await db.orderingConfig.get("global");
-        if (!config) {
-            await db.orderingConfig.put({
-                id: "global",
-                brandOrder: [],
-                subCategoryOrders: {},
-                updatedAt: new Date().toISOString(),
-            });
-        }
 
         const templateCount = await db.shiftTemplates.count();
         if (templateCount === 0) {
