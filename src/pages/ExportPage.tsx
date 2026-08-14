@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { ShiftRecord } from "../types";
 import { shiftService } from "../features/shifts/services/shiftService";
 import { exportService } from "../features/export/services/exportService";
+import { whatsappService } from "../features/export/services/whatsappService";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { formatExportFilename } from "../utils/date";
@@ -10,6 +11,7 @@ export default function ExportPage() {
     const [shifts, setShifts] = useState<ShiftRecord[]>([]);
     const [selectedShift, setSelectedShift] = useState("");
     const [exporting, setExporting] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         shiftService.getAll().then(setShifts);
@@ -27,6 +29,21 @@ export default function ExportPage() {
             alert("Failed to export CSV");
         } finally {
             setExporting(false);
+        }
+    };
+
+    const handleCopySummary = async () => {
+        if (!selectedShift) return;
+        try {
+            const text = await whatsappService.generateSummary(selectedShift);
+            const success = await whatsappService.copyToClipboard(text);
+            if (success) {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }
+        } catch (error) {
+            console.error("Copy failed:", error);
+            alert("Failed to copy summary");
         }
     };
 
@@ -58,7 +75,7 @@ export default function ExportPage() {
                     Export Report
                 </h3>
                 <p className="text-sm text-stone-400 mb-5">
-                    Download CSV matching your Excel format
+                    Download CSV or copy for WhatsApp
                 </p>
 
                 <select
@@ -84,15 +101,26 @@ export default function ExportPage() {
                     </p>
                 )}
 
-                <Button
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    disabled={!selectedShift || exporting}
-                    onClick={handleExport}
-                >
-                    {exporting ? "Exporting..." : "Export CSV"}
-                </Button>
+                <div className="space-y-2">
+                    <Button
+                        variant="primary"
+                        size="lg"
+                        fullWidth
+                        disabled={!selectedShift || exporting}
+                        onClick={handleExport}
+                    >
+                        {exporting ? "Exporting..." : "Export CSV"}
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        size="lg"
+                        fullWidth
+                        disabled={!selectedShift}
+                        onClick={handleCopySummary}
+                    >
+                        {copied ? "✓ Copied!" : "Copy for WhatsApp"}
+                    </Button>
+                </div>
             </Card>
 
             {shifts.length === 0 && (
