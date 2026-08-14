@@ -1,7 +1,6 @@
 import { shiftRepo } from "../../../db/shiftRepo";
 import { salesRepo } from "../../../db/salesRepo";
 import { templateRepo } from "../../../db/templateRepo";
-import { validateShift } from "../../../utils/validation";
 import type { ShiftRecord, ShiftSummary, ShiftSales } from "../../../types";
 
 export const shiftService = {
