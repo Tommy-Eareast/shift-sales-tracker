@@ -4,6 +4,8 @@ import { useShifts } from "../features/shifts/hooks/useShifts";
 import { useTemplates } from "../features/templates/hooks/useTemplates";
 import { Card, CardHeader } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
+import { AlertModal } from "../components/ui/AlertModal";
 import { NewShiftModal } from "../features/shifts/components/NewShiftModal";
 import { EditShiftModal } from "../features/shifts/components/EditShiftModal";
 
@@ -21,6 +23,17 @@ export default function ShiftListPage() {
     const [start, setStart] = useState("07:00");
     const [end, setEnd] = useState("12:00");
 
+    // Delete confirmation state
+    const [deleteTarget, setDeleteTarget] = useState<{
+        id: string;
+        name: string;
+    } | null>(null);
+    // Alert modal state
+    const [alertInfo, setAlertInfo] = useState<{
+        title: string;
+        message: string;
+    } | null>(null);
+
     const openNew = () => {
         setTemplateId(templates[0]?.templateId || "");
         setDate(new Date().toISOString().split("T")[0]);
@@ -28,6 +41,7 @@ export default function ShiftListPage() {
         setEnd("12:00");
         setShowNew(true);
     };
+
     const openEdit = (id: string) => {
         const s = shifts.find((x) => x.shiftId === id);
         if (s) {
@@ -37,6 +51,57 @@ export default function ShiftListPage() {
             setEnd(s.shiftTimeEnd);
             setShowEdit(true);
         }
+    };
+
+    const handleCreate = async () => {
+        try {
+            await create(templateId, date, start, end);
+            setShowNew(false);
+        } catch (e) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    e instanceof Error ? e.message : "Failed to create shift",
+            });
+        }
+    };
+
+    const handleUpdate = async () => {
+        if (!editingId) return;
+        try {
+            await update(editingId, {
+                recordDate: date,
+                shiftTimeStart: start,
+                shiftTimeEnd: end,
+            });
+            setShowEdit(false);
+        } catch (e) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    e instanceof Error ? e.message : "Failed to update shift",
+            });
+        }
+    };
+
+    const handleDeleteRequest = (shiftId: string) => {
+        const shift = shifts.find((s) => s.shiftId === shiftId);
+        if (!shift) return;
+        setDeleteTarget({ id: shiftId, name: shift.shiftDisplayName });
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!deleteTarget) return;
+        try {
+            await remove(deleteTarget.id);
+        } catch (e) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    e instanceof Error ? e.message : "Failed to delete shift",
+            });
+        }
+        setDeleteTarget(null);
     };
 
     if (loading)
@@ -59,6 +124,9 @@ export default function ShiftListPage() {
                 shifts.find((s) => s.shiftId === editingId)?.templateId,
         )?.templateName || "";
 
+    const deleteMessage = deleteTarget
+        ? `Delete shift "${deleteTarget.name}"? This cannot be undone.`
+        : "";
     return (
         <div>
             <div className="grid grid-cols-2 gap-3 mb-6">
@@ -132,6 +200,15 @@ export default function ShiftListPage() {
                                             <h3 className="font-semibold text-stone-900 text-sm">
                                                 {shift.shiftDisplayName}
                                             </h3>
+                                            {shift.status === "submitted" ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                                                    Submitted
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+                                                    Draft
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-xs text-stone-400 mt-1 ml-[18px]">
                                             {t?.templateName || "Unknown"}
@@ -178,12 +255,9 @@ export default function ShiftListPage() {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (
-                                                    confirm(
-                                                        "Delete this shift? All sales data will be lost.",
-                                                    )
-                                                )
-                                                    remove(shift.shiftId);
+                                                handleDeleteRequest(
+                                                    shift.shiftId,
+                                                );
                                             }}
                                             className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50"
                                         >
@@ -221,14 +295,7 @@ export default function ShiftListPage() {
                 onDateChange={setDate}
                 onTimeStartChange={setStart}
                 onTimeEndChange={setEnd}
-                onCreate={async () => {
-                    try {
-                        await create(templateId, date, start, end);
-                        setShowNew(false);
-                    } catch (e) {
-                        alert(e instanceof Error ? e.message : "Failed");
-                    }
-                }}
+                onCreate={handleCreate}
             />
 
             <EditShiftModal
@@ -241,18 +308,24 @@ export default function ShiftListPage() {
                 onDateChange={setDate}
                 onTimeStartChange={setStart}
                 onTimeEndChange={setEnd}
-                onUpdate={async () => {
-                    try {
-                        await update(editingId!, {
-                            recordDate: date,
-                            shiftTimeStart: start,
-                            shiftTimeEnd: end,
-                        });
-                        setShowEdit(false);
-                    } catch (e) {
-                        alert(e instanceof Error ? e.message : "Failed");
-                    }
-                }}
+                onUpdate={handleUpdate}
+            />
+
+            <ConfirmModal
+                isOpen={deleteTarget !== null}
+                onCancel={() => setDeleteTarget(null)}
+                onConfirm={handleDeleteConfirm}
+                title="Delete Shift"
+                message={deleteMessage}
+                confirmLabel="Delete"
+                danger
+            />
+
+            <AlertModal
+                isOpen={alertInfo !== null}
+                title={alertInfo?.title || ""}
+                message={alertInfo?.message || ""}
+                onClose={() => setAlertInfo(null)}
             />
         </div>
     );

@@ -17,6 +17,8 @@ export type ShiftTemplate = {
     createdAt: string;
 };
 
+export type ShiftStatus = "draft" | "submitted";
+
 export type ShiftRecord = {
     shiftId: string;
     templateId: string;
@@ -24,7 +26,27 @@ export type ShiftRecord = {
     shiftDisplayName: string;
     shiftTimeStart: string;
     shiftTimeEnd: string;
+    status: ShiftStatus;
+    note: string;
+    submittedAt: string;
     createdAt: string;
+};
+
+// Permanent record of a submitted shift (survives promoter deletion)
+export type SubmittedShift = {
+    id: string;
+    shiftId: string;
+    templateId: string;
+    templateName: string;
+    recordDate: string;
+    shiftDisplayName: string;
+    shiftTimeStart: string;
+    shiftTimeEnd: string;
+    note: string;
+    submittedAt: string;
+    totalCount: number;
+    totalRevenue: number;
+    salesJson: string;
 };
 
 export type ShiftSales = {

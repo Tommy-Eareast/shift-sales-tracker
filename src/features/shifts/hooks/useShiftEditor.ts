@@ -9,11 +9,6 @@ import { shiftService } from "../services/shiftService";
 import { productService } from "../../products/services/productService";
 import { templateService } from "../../templates/services/templateService";
 
-/**
- * Hook for the shift editing screen.
- * Manages products, sales, and summary for a single shift.
- * Used by ShiftEditPage.
- */
 export function useShiftEditor(shiftId: string | undefined) {
     const [shift, setShift] = useState<ShiftRecord | null>(null);
     const [template, setTemplate] = useState<ShiftTemplate | null>(null);
@@ -25,7 +20,6 @@ export function useShiftEditor(shiftId: string | undefined) {
 
     const load = useCallback(async () => {
         if (!shiftId) return;
-
         setLoading(true);
         setError(null);
         try {
@@ -62,7 +56,7 @@ export function useShiftEditor(shiftId: string | undefined) {
 
     const adjustSales = useCallback(
         async (productId: string, delta: number) => {
-            if (!shiftId) return;
+            if (!shiftId || shift?.status === "submitted") return;
 
             const currentCount = sales.get(productId) || 0;
             const newCount = Math.max(0, currentCount + delta);
@@ -85,7 +79,16 @@ export function useShiftEditor(shiftId: string | undefined) {
                 });
             }
         },
-        [shiftId, sales],
+        [shiftId, shift, sales],
+    );
+
+    const submit = useCallback(
+        async (note: string) => {
+            if (!shiftId) return;
+            await shiftService.submit(shiftId, note);
+            await load();
+        },
+        [shiftId, load],
     );
 
     return {
@@ -97,6 +100,7 @@ export function useShiftEditor(shiftId: string | undefined) {
         loading,
         error,
         adjustSales,
+        submit,
         refresh: load,
     };
 }

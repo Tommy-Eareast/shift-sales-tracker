@@ -1,4 +1,4 @@
-# Perfume Shift Sales Tracker
+# Shift Sales Tracker
 
 A mobile-first offline PWA for tracking perfume sales across shifts. Built with React + Vite + Dexie.js.
 

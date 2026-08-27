@@ -36,6 +36,9 @@ export const shiftRepo = {
             shiftDisplayName,
             shiftTimeStart,
             shiftTimeEnd,
+            status: "draft",
+            note: "",
+            submittedAt: "",
             createdAt: new Date().toISOString(),
         });
 
@@ -60,10 +63,29 @@ export const shiftRepo = {
             timeEnd,
         );
 
-        await db.shiftRecords.update(shiftId, { ...updates, shiftDisplayName });
+        await db.shiftRecords.update(shiftId, {
+            ...updates,
+            shiftDisplayName,
+        });
+    },
+
+    async submit(shiftId: string, note: string): Promise<void> {
+        const shift = await db.shiftRecords.get(shiftId);
+        if (!shift) throw new Error("Shift not found");
+
+        if (shift.status === "submitted") {
+            throw new Error("Shift already submitted");
+        }
+
+        await db.shiftRecords.update(shiftId, {
+            status: "submitted",
+            note,
+            submittedAt: new Date().toISOString(),
+        });
     },
 
     async delete(shiftId: string): Promise<void> {
+        // UI layer handles extra confirmation for recent shifts.
         await db.shiftSales.where("shiftId").equals(shiftId).delete();
         await db.shiftRecords.delete(shiftId);
     },

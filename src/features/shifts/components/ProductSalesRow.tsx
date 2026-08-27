@@ -4,9 +4,15 @@ type Props = {
     product: Product;
     soldCount: number;
     onAdjust: (productId: string, delta: number) => void;
+    disabled?: boolean;
 };
 
-export function ProductSalesRow({ product, soldCount, onAdjust }: Props) {
+export function ProductSalesRow({
+    product,
+    soldCount,
+    onAdjust,
+    disabled = false,
+}: Props) {
     const revenue = soldCount * product.price;
 
     return (
@@ -30,7 +36,7 @@ export function ProductSalesRow({ product, soldCount, onAdjust }: Props) {
                     <div className="flex items-center gap-1.5 bg-stone-100 rounded-lg p-1">
                         <button
                             onClick={() => onAdjust(product.id, -1)}
-                            disabled={soldCount === 0}
+                            disabled={disabled || soldCount === 0}
                             className="w-7 h-7 flex items-center justify-center bg-white rounded-md border border-stone-200 hover:bg-stone-50 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all text-stone-600 text-sm font-medium"
                         >
                             −
@@ -40,7 +46,8 @@ export function ProductSalesRow({ product, soldCount, onAdjust }: Props) {
                         </span>
                         <button
                             onClick={() => onAdjust(product.id, 1)}
-                            className="w-7 h-7 flex items-center justify-center text-white rounded-md active:scale-95 transition-all text-sm font-medium"
+                            disabled={disabled}
+                            className="w-7 h-7 flex items-center justify-center text-white rounded-md active:scale-95 transition-all text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed"
                             style={{
                                 background: "#5b8c7a",
                                 boxShadow: "0 1px 3px rgba(91,140,122,0.3)",

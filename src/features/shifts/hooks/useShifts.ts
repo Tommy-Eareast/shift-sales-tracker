@@ -78,6 +78,14 @@ export function useShifts() {
         [load],
     );
 
+    const submit = useCallback(
+        async (shiftId: string, note: string) => {
+            await shiftService.submit(shiftId, note);
+            await load();
+        },
+        [load],
+    );
+
     const remove = useCallback(
         async (shiftId: string) => {
             await shiftService.delete(shiftId);
@@ -93,6 +101,7 @@ export function useShifts() {
         error,
         create,
         update,
+        submit,
         remove,
         refresh: load,
     };

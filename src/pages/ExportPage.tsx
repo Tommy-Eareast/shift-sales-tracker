@@ -5,6 +5,7 @@ import { exportService } from "../features/export/services/exportService";
 import { whatsappService } from "../features/export/services/whatsappService";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { AlertModal } from "../components/ui/AlertModal";
 import { formatExportFilename } from "../utils/date";
 
 export default function ExportPage() {
@@ -12,6 +13,10 @@ export default function ExportPage() {
     const [selectedShift, setSelectedShift] = useState("");
     const [exporting, setExporting] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [alertInfo, setAlertInfo] = useState<{
+        title: string;
+        message: string;
+    } | null>(null);
 
     useEffect(() => {
         shiftService.getAll().then(setShifts);
@@ -26,7 +31,7 @@ export default function ExportPage() {
             exportService.downloadCsv(content, filename);
         } catch (error) {
             console.error("Export failed:", error);
-            alert("Failed to export CSV");
+            setAlertInfo({ title: "Error", message: "Failed to export CSV" });
         } finally {
             setExporting(false);
         }
@@ -43,7 +48,7 @@ export default function ExportPage() {
             }
         } catch (error) {
             console.error("Copy failed:", error);
-            alert("Failed to copy summary");
+            setAlertInfo({ title: "Error", message: "Failed to copy summary" });
         }
     };
 
@@ -130,6 +135,13 @@ export default function ExportPage() {
                     </p>
                 </Card>
             )}
+
+            <AlertModal
+                isOpen={alertInfo !== null}
+                title={alertInfo?.title || ""}
+                message={alertInfo?.message || ""}
+                onClose={() => setAlertInfo(null)}
+            />
         </div>
     );
 }

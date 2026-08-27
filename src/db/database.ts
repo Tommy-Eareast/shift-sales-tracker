@@ -5,6 +5,7 @@ import type {
     ShiftRecord,
     ShiftSales,
     OrderingConfig,
+    SubmittedShift,
 } from "../types";
 
 export function generateUUID(): string {
@@ -17,16 +18,18 @@ class PerfumeDatabase extends Dexie {
     shiftRecords!: Dexie.Table<ShiftRecord, string>;
     shiftSales!: Dexie.Table<ShiftSales, string>;
     orderingConfig!: Dexie.Table<OrderingConfig, string>;
+    submittedShifts!: Dexie.Table<SubmittedShift, string>;
 
     constructor() {
         super("PerfumeShiftTrackerDB");
 
-        this.version(4).stores({
+        this.version(6).stores({
             products: "id, brandMain, subCategory, sortOrder",
             shiftTemplates: "templateId, sortOrder",
-            shiftRecords: "shiftId, recordDate, templateId",
+            shiftRecords: "shiftId, recordDate, templateId, status",
             shiftSales: "id, shiftId, productId, [shiftId+productId]",
             orderingConfig: "id",
+            submittedShifts: "id, shiftId, templateId, recordDate, submittedAt",
         });
     }
 
@@ -36,15 +39,12 @@ class PerfumeDatabase extends Dexie {
         await this.shiftRecords.clear();
         await this.shiftSales.clear();
         await this.orderingConfig.clear();
+        await this.submittedShifts.clear();
     }
 }
 
 export const db = new PerfumeDatabase();
 
-/**
- * Opens the database and seeds default data if empty.
- * Called once on app startup from main.tsx.
- */
 export async function initializeDatabase() {
     try {
         await db.open();

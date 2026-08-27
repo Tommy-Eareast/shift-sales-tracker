@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useShiftEditor } from "../features/shifts/hooks/useShiftEditor";
 import { useShiftDisplay } from "../features/shifts/hooks/useShiftDisplay";
 import { useExpandable } from "../hooks/useExpandable";
 import { Card } from "../components/ui/Card";
+import { Button } from "../components/ui/Button";
+import { AlertModal } from "../components/ui/AlertModal";
 import { ShiftHeader } from "../features/shifts/components/ShiftHeader";
 import { ProductSalesRow } from "../features/shifts/components/ProductSalesRow";
+import { SubmitShiftModal } from "../features/shifts/components/SubmitShiftModal";
 
 export default function ShiftEditPage() {
     const { shiftId } = useParams<{ shiftId: string }>();
@@ -17,6 +21,7 @@ export default function ShiftEditPage() {
         loading,
         error,
         adjustSales,
+        submit,
     } = useShiftEditor(shiftId);
     const { displayBrandOrder, groupedProducts } = useShiftDisplay(
         products,
@@ -24,6 +29,11 @@ export default function ShiftEditPage() {
     );
     const brandExpand = useExpandable();
     const subCatExpand = useExpandable();
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [alertInfo, setAlertInfo] = useState<{
+        title: string;
+        message: string;
+    } | null>(null);
 
     if (loading)
         return (
@@ -46,9 +56,44 @@ export default function ShiftEditPage() {
             </div>
         );
 
+    const isSubmitted = shift.status === "submitted";
+
+    const handleSubmit = async (note: string) => {
+        try {
+            await submit(note);
+            setShowSubmitModal(false);
+        } catch (e) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    e instanceof Error ? e.message : "Failed to submit shift",
+            });
+        }
+    };
+
     return (
-        <div className="space-y-4 pb-26">
+        <div className="space-y-4 pb-28">
             <ShiftHeader shift={shift} template={template} summary={summary} />
+
+            {/* Status badge */}
+            <div className="flex items-center gap-2">
+                {isSubmitted ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Submitted
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Draft
+                    </span>
+                )}
+                {shift.note && (
+                    <p className="text-xs text-stone-400 truncate">
+                        {shift.note}
+                    </p>
+                )}
+            </div>
 
             <div className="space-y-3">
                 {displayBrandOrder.map((brand) => {
@@ -147,6 +192,9 @@ export default function ShiftEditPage() {
                                                                     onAdjust={
                                                                         adjustSales
                                                                     }
+                                                                    disabled={
+                                                                        isSubmitted
+                                                                    }
                                                                 />
                                                             ),
                                                         )}
@@ -162,39 +210,65 @@ export default function ShiftEditPage() {
                 })}
             </div>
 
-            {summary && (
-                <div
-                    className="fixed bottom-18 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-stone-200/60 z-10"
-                    style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}
-                >
-                    <div className="max-w-2xl mx-auto px-5 py-2.5">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
-                                    Shift Total
-                                </p>
-                                <p className="text-sm text-stone-900">
-                                    Sold:{" "}
-                                    <span className="font-bold">
-                                        {summary.totalCount}
-                                    </span>
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
-                                    Revenue
-                                </p>
-                                <p
-                                    className="text-lg font-bold tracking-tight"
-                                    style={{ color: "#5b8c7a" }}
-                                >
-                                    ${summary.totalRevenue}
-                                </p>
-                            </div>
+            {/* Bottom Bar */}
+            <div
+                className="fixed bottom-17 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-stone-200/60 z-10"
+                style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.04)" }}
+            >
+                <div className="max-w-2xl mx-auto px-5 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                                Shift Total
+                            </p>
+                            <p className="text-sm text-stone-900">
+                                Sold:{" "}
+                                <span className="font-bold">
+                                    {summary?.totalCount || 0}
+                                </span>
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                                Revenue
+                            </p>
+                            <p
+                                className="text-lg font-bold tracking-tight"
+                                style={{ color: "#5b8c7a" }}
+                            >
+                                ${summary?.totalRevenue || 0}
+                            </p>
                         </div>
                     </div>
+                    {!isSubmitted && (
+                        <Button
+                            variant="primary"
+                            size="lg"
+                            fullWidth
+                            onClick={() => setShowSubmitModal(true)}
+                            className="mt-2"
+                        >
+                            Submit Shift
+                        </Button>
+                    )}
                 </div>
-            )}
+            </div>
+
+            <SubmitShiftModal
+                isOpen={showSubmitModal}
+                onClose={() => setShowSubmitModal(false)}
+                onSubmit={handleSubmit}
+                shiftDisplayName={shift.shiftDisplayName}
+                totalCount={summary?.totalCount || 0}
+                totalRevenue={summary?.totalRevenue || 0}
+            />
+
+            <AlertModal
+                isOpen={alertInfo !== null}
+                title={alertInfo?.title || ""}
+                message={alertInfo?.message || ""}
+                onClose={() => setAlertInfo(null)}
+            />
         </div>
     );
 }

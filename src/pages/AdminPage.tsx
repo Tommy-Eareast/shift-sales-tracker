@@ -3,6 +3,8 @@ import { useProducts } from "../features/products/hooks/useProducts";
 import { useTemplates } from "../features/templates/hooks/useTemplates";
 import { useExpandable } from "../hooks/useExpandable";
 import { Card, CardHeader } from "../components/ui/Card";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
+import { AlertModal } from "../components/ui/AlertModal";
 import {
     DndContext,
     closestCenter,
@@ -10,6 +12,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
+    type DragEndEvent,
 } from "@dnd-kit/core";
 import {
     arrayMove,
@@ -55,6 +58,7 @@ export default function AdminPage() {
     const brandExpand = useExpandable();
     const subCatExpand = useExpandable();
 
+    // Product form
     const [showProductForm, setShowProductForm] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [productForm, setProductForm] = useState({
@@ -65,12 +69,26 @@ export default function AdminPage() {
     });
     const [productError, setProductError] = useState("");
 
+    // Template form
     const [showTemplateForm, setShowTemplateForm] = useState(false);
     const [templateForm, setTemplateForm] = useState({
         templateName: "",
         selectedBrands: [] as string[],
     });
     const [templateError, setTemplateError] = useState("");
+
+    // Confirm/Alert modals
+    const [deleteProductTarget, setDeleteProductTarget] = useState<
+        string | null
+    >(null);
+    const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<{
+        id: string;
+        name: string;
+    } | null>(null);
+    const [alertInfo, setAlertInfo] = useState<{
+        title: string;
+        message: string;
+    } | null>(null);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -113,6 +131,34 @@ export default function AdminPage() {
                 err instanceof Error ? err.message : "Failed to save",
             );
         }
+    };
+
+    const handleDeleteProductConfirm = async () => {
+        if (!deleteProductTarget) return;
+        try {
+            await remove(deleteProductTarget);
+        } catch (err) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    err instanceof Error ? err.message : "Failed to delete",
+            });
+        }
+        setDeleteProductTarget(null);
+    };
+
+    const handleDeleteTemplateConfirm = async () => {
+        if (!deleteTemplateTarget) return;
+        try {
+            await removeTemplate(deleteTemplateTarget.id);
+        } catch (err) {
+            setAlertInfo({
+                title: "Error",
+                message:
+                    err instanceof Error ? err.message : "Failed to delete",
+            });
+        }
+        setDeleteTemplateTarget(null);
     };
 
     if (loading || tl)
@@ -234,7 +280,7 @@ export default function AdminPage() {
                                                 }
                                             />
                                             {brandExpand.isExpanded(brand) && (
-                                                <div className="pl-4 mt-1 space-y-1">
+                                                <div className="pl-4 mt-2 space-y-1">
                                                     <DndContext
                                                         id={`sub-${brand}`}
                                                         sensors={sensors}
@@ -455,16 +501,11 @@ export default function AdminPage() {
                                                                                                                 }}
                                                                                                                 onDelete={(
                                                                                                                     id,
-                                                                                                                ) => {
-                                                                                                                    if (
-                                                                                                                        confirm(
-                                                                                                                            "Delete this product?",
-                                                                                                                        )
+                                                                                                                ) =>
+                                                                                                                    setDeleteProductTarget(
+                                                                                                                        id,
                                                                                                                     )
-                                                                                                                        remove(
-                                                                                                                            id,
-                                                                                                                        );
-                                                                                                                }}
+                                                                                                                }
                                                                                                             />
                                                                                                         ),
                                                                                                     )}
@@ -544,15 +585,12 @@ export default function AdminPage() {
                                     <SortableTemplateItem
                                         key={t.templateId}
                                         template={t}
-                                        onDelete={(id) => {
-                                            if (
-                                                confirm("Delete this template?")
-                                            )
-                                                removeTemplate(id).catch(
-                                                    (e: Error) =>
-                                                        alert(e.message),
-                                                );
-                                        }}
+                                        onDelete={(id) =>
+                                            setDeleteTemplateTarget({
+                                                id,
+                                                name: t.templateName,
+                                            })
+                                        }
                                     />
                                 ))}
                             </div>
@@ -583,6 +621,33 @@ export default function AdminPage() {
                 error={templateError}
                 brands={distinctValues.brands}
                 onSave={saveTemplate}
+            />
+
+            <ConfirmModal
+                isOpen={deleteProductTarget !== null}
+                onCancel={() => setDeleteProductTarget(null)}
+                onConfirm={handleDeleteProductConfirm}
+                title="Delete Product"
+                message="Are you sure you want to delete this product? This cannot be undone."
+                confirmLabel="Delete"
+                danger
+            />
+
+            <ConfirmModal
+                isOpen={deleteTemplateTarget !== null}
+                onCancel={() => setDeleteTemplateTarget(null)}
+                onConfirm={handleDeleteTemplateConfirm}
+                title="Delete Template"
+                message={`Delete template "${deleteTemplateTarget?.name}"? This cannot be undone.`}
+                confirmLabel="Delete"
+                danger
+            />
+
+            <AlertModal
+                isOpen={alertInfo !== null}
+                title={alertInfo?.title || ""}
+                message={alertInfo?.message || ""}
+                onClose={() => setAlertInfo(null)}
             />
         </div>
     );
