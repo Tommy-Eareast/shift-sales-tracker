@@ -1,168 +1,91 @@
-import { productRepo } from "../../../db/productRepo";
-import { configRepo } from "../../../db/configRepo";
-import { validateProduct } from "../../../utils/validation";
-import type { Product } from "../../../types";
+import { getSupabase } from '../../../lib/supabaseClient';
+import type { Product } from '../../../types';
+import type { SupabaseProductRow } from '../../../types/supabase';
+
+const supabase = getSupabase();
 
 export const productService = {
-    /**
-     * Get all products sorted by the user's configured brand/sub-category order.
-     */
-    async getSorted(): Promise<Product[]> {
-        const products = await productRepo.getAll();
-        const config = await configRepo.get();
+    async getAll(): Promise<Product[]> {
+        const { data, error } = await supabase.from('products').select('*').order('sort_order');
+        if (error) throw new Error(error.message);
 
-        // Group products by brand
-        const byBrand: Record<string, Product[]> = {};
-        for (const p of products) {
-            if (!byBrand[p.brandMain]) byBrand[p.brandMain] = [];
-            byBrand[p.brandMain].push(p);
-        }
-
-        // Sort each brand's products by subCategory order then sortOrder
-        for (const brand of Object.keys(byBrand)) {
-            const subCatOrder = config.subCategoryOrders[brand] || [];
-
-            const bySubCat: Record<string, Product[]> = {};
-            for (const p of byBrand[brand]) {
-                if (!bySubCat[p.subCategory]) bySubCat[p.subCategory] = [];
-                bySubCat[p.subCategory].push(p);
-            }
-
-            for (const subCat of Object.keys(bySubCat)) {
-                bySubCat[subCat].sort((a, b) => a.sortOrder - b.sortOrder);
-            }
-
-            const sorted: Product[] = [];
-            for (const subCat of subCatOrder) {
-                if (bySubCat[subCat]) sorted.push(...bySubCat[subCat]);
-            }
-            for (const subCat of Object.keys(bySubCat)) {
-                if (!subCatOrder.includes(subCat))
-                    sorted.push(...bySubCat[subCat]);
-            }
-
-            byBrand[brand] = sorted;
-        }
-
-        // Flatten in brand order
-        const brandOrder =
-            config.brandOrder.length > 0
-                ? [...config.brandOrder]
-                : Object.keys(byBrand);
-
-        const result: Product[] = [];
-        for (const brand of brandOrder) {
-            if (byBrand[brand]) result.push(...byBrand[brand]);
-        }
-        for (const brand of Object.keys(byBrand)) {
-            if (!brandOrder.includes(brand)) result.push(...byBrand[brand]);
-        }
-
-        return result;
+        return (data || []).map((p: SupabaseProductRow) => ({
+            id: p.id,
+            brandMain: p.brand_main,
+            subCategory: p.sub_category,
+            fullName: p.full_name,
+            price: p.price,
+            sortOrder: p.sort_order,
+            createdAt: p.created_at,
+            updatedAt: p.updated_at,
+        }));
     },
 
-    /**
-     * Get distinct brands and sub-categories from existing products.
-     */
-    getDistinctValues(products: Product[]): {
-        brands: string[];
-        subCategories: string[];
-    } {
+    getDistinctValues(products: Product[]): { brands: string[]; subCategories: string[] } {
         const brandSet = new Set<string>();
         const subCatSet = new Set<string>();
         for (const p of products) {
             brandSet.add(p.brandMain);
             subCatSet.add(p.subCategory);
         }
-        return {
-            brands: Array.from(brandSet).sort(),
-            subCategories: Array.from(subCatSet).sort(),
-        };
+        return { brands: Array.from(brandSet).sort(), subCategories: Array.from(subCatSet).sort() };
     },
 
-    /**
-     * Get sub-category suggestions filtered by brand.
-     */
-    getSubCategorySuggestions(
-        products: Product[],
-        brandMain: string,
-    ): string[] {
+    getSubCategorySuggestions(products: Product[], brandMain: string): string[] {
         if (!brandMain) return [];
-        const brandProducts = products.filter((p) => p.brandMain === brandMain);
-        return [...new Set(brandProducts.map((p) => p.subCategory))].sort();
+        const brandProducts = products.filter(p => p.brandMain === brandMain);
+        return [...new Set(brandProducts.map(p => p.subCategory))].sort();
     },
 
-    /**
-     * Add a new product after validation.
-     */
-    async add(data: {
-        brandMain: string;
-        subCategory: string;
-        fullName: string;
-        price: number;
-    }): Promise<string> {
-        const allProducts = await productRepo.getAll();
-        const validation = validateProduct(data, allProducts);
-        if (!validation.valid) throw new Error(validation.error);
-
-        return productRepo.add(data);
+    async add(data: { brandMain: string; subCategory: string; fullName: string; price: number }): Promise<string> {
+        const { data: result, error } = await supabase
+            .from('products')
+            .insert({
+                brand_main: data.brandMain,
+                sub_category: data.subCategory,
+                full_name: data.fullName,
+                price: data.price,
+                sort_order: 0,
+            })
+            .select('id')
+            .single();
+        if (error) throw new Error(error.message);
+        return result.id;
     },
 
-    /**
-     * Update an existing product after validation.
-     */
     async update(id: string, data: Partial<Product>): Promise<void> {
-        if (data.fullName || data.brandMain) {
-            const allProducts = await productRepo.getAll();
-            const validation = validateProduct(
-                {
-                    brandMain: data.brandMain ?? "",
-                    subCategory: data.subCategory ?? "",
-                    fullName: data.fullName ?? "",
-                    price: data.price ?? 0,
-                },
-                allProducts,
-                id,
-            );
-            if (!validation.valid) throw new Error(validation.error);
-        }
+        const updates: Record<string, string | number> = {};
+        if (data.brandMain !== undefined) updates.brand_main = data.brandMain;
+        if (data.subCategory !== undefined) updates.sub_category = data.subCategory;
+        if (data.fullName !== undefined) updates.full_name = data.fullName;
+        if (data.price !== undefined) updates.price = data.price;
+        if (data.sortOrder !== undefined) updates.sort_order = data.sortOrder;
+        updates.updated_at = new Date().toISOString();
 
-        await productRepo.update(id, data);
+        const { error } = await supabase.from('products').update(updates).eq('id', id);
+        if (error) throw new Error(error.message);
     },
 
-    /**
-     * Delete a product.
-     */
     async delete(id: string): Promise<void> {
-        await productRepo.delete(id);
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) throw new Error(error.message);
     },
 
-    /**
-     * Reorder products within a sub-category.
-     */
-    async reorder(
-        _brandMain: string,
-        _subCategory: string,
-        productIds: string[],
-    ): Promise<void> {
-        const items = productIds.map((id, i) => ({ id, sortOrder: i }));
-        await productRepo.updateSortOrders(items);
-    },
+    async reorder(productIds: string[]): Promise<void> {
+        // Use RPC for batch update (1 request instead of N)
+        const items = productIds.map((id, index) => ({ id, sort_order: index }));
 
-    /**
-     * Reorder brands globally.
-     */
-    async reorderBrands(brandOrder: string[]): Promise<void> {
-        await configRepo.updateBrandOrder(brandOrder);
-    },
+        const { error } = await supabase.rpc('update_product_sort_orders', { items });
 
-    /**
-     * Reorder sub-categories within a brand.
-     */
-    async reorderSubCategories(
-        brand: string,
-        subCategoryOrder: string[],
-    ): Promise<void> {
-        await configRepo.updateSubCategoryOrder(brand, subCategoryOrder);
+        if (error) {
+            console.warn('RPC failed, falling back to individual updates:', error.message);
+            // Fallback: individual updates
+            for (let i = 0; i < productIds.length; i++) {
+                await supabase
+                    .from('products')
+                    .update({ sort_order: i, updated_at: new Date().toISOString() })
+                    .eq('id', productIds[i]);
+            }
+        }
     },
 };

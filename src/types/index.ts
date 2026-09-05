@@ -4,7 +4,7 @@ export type Product = {
     subCategory: string;
     fullName: string;
     price: number;
-    sortOrder: number; // Sort order within subCategory
+    sortOrder: number;
     createdAt: string;
     updatedAt: string;
 };
@@ -14,10 +14,11 @@ export type ShiftTemplate = {
     templateName: string;
     brandList: string[];
     sortOrder: number;
+    exportProfile: string;
     createdAt: string;
 };
 
-export type ShiftStatus = "draft" | "submitted";
+export type ShiftStatus = 'draft' | 'submitted';
 
 export type ShiftRecord = {
     shiftId: string;
@@ -32,34 +33,9 @@ export type ShiftRecord = {
     createdAt: string;
 };
 
-// Permanent record of a submitted shift (survives promoter deletion)
-export type SubmittedShift = {
-    id: string;
-    shiftId: string;
-    templateId: string;
-    templateName: string;
-    recordDate: string;
-    shiftDisplayName: string;
-    shiftTimeStart: string;
-    shiftTimeEnd: string;
-    note: string;
-    submittedAt: string;
-    totalCount: number;
-    totalRevenue: number;
-    salesJson: string;
-};
+export type ShiftSales = { id: string; shiftId: string; productId: string; sellCount: number };
 
-export type ShiftSales = {
-    id: string;
-    shiftId: string;
-    productId: string;
-    sellCount: number;
-};
-
-export type SubCategorySummary = {
-    subCount: number;
-    subRevenue: number;
-};
+export type SubCategorySummary = { subCount: number; subRevenue: number };
 
 export type BrandSummary = {
     subCategories: Record<string, SubCategorySummary>;
@@ -67,16 +43,4 @@ export type BrandSummary = {
     brandTotalRevenue: number;
 };
 
-export type ShiftSummary = {
-    brandSummaries: Record<string, BrandSummary>;
-    totalCount: number;
-    totalRevenue: number;
-};
-
-// Ordering configuration stored separately
-export type OrderingConfig = {
-    id: string; // 'global'
-    brandOrder: string[]; // Ordered list of brand names
-    subCategoryOrders: Record<string, string[]>; // brand -> ordered subCategory names
-    updatedAt: string;
-};
+export type ShiftSummary = { brandSummaries: Record<string, BrandSummary>; totalCount: number; totalRevenue: number };

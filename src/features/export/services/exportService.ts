@@ -1,133 +1,143 @@
-import { shiftRepo } from "../../../db/shiftRepo";
-import { templateRepo } from "../../../db/templateRepo";
-import { salesRepo } from "../../../db/salesRepo";
-import { productRepo } from "../../../db/productRepo";
+import { getSupabase } from "../../../lib/supabaseClient";
 import { formatExportFilename } from "../../../utils/date";
+import type {
+  SupabaseProductRow,
+  SupabaseShiftRow,
+  SupabaseShiftSaleRow,
+  SupabaseTemplateRow,
+  GroupedSaleItem,
+} from "../../../types/supabase";
+
+const supabase = getSupabase();
 
 export const exportService = {
-    /**
-     * Generate CSV content for a shift.
-     */
-    async generateCsv(
-        shiftId: string,
-    ): Promise<{ content: string; filename: string }> {
-        const shift = await shiftRepo.getById(shiftId);
-        if (!shift) throw new Error("Shift not found");
+  async generateCsv(
+    shiftId: string,
+  ): Promise<{ content: string; filename: string }> {
+    const { data: shiftData, error: shiftError } = await supabase
+      .from("shifts")
+      .select("*")
+      .eq("id", shiftId)
+      .maybeSingle();
+    if (shiftError) throw new Error(shiftError.message);
+    if (!shiftData) throw new Error("Shift not found");
 
-        const template = await templateRepo.getById(shift.templateId);
-        if (!template) throw new Error("Template not found");
+    const shift = shiftData as SupabaseShiftRow;
 
-        const summary = await salesRepo.getSummary(shiftId);
-        const salesData = await salesRepo.getByShift(shiftId);
-        const allProducts = await productRepo.getAll();
+    const { data: templateData, error: templateError } = await supabase
+      .from("templates")
+      .select("*")
+      .eq("id", shift.template_id)
+      .maybeSingle();
+    if (templateError) throw new Error(templateError.message);
 
-        const salesMap = new Map<string, number>();
-        salesData.forEach((sale) =>
-            salesMap.set(sale.productId, sale.sellCount),
-        );
+    const template = templateData as SupabaseTemplateRow | null;
 
-        const SEP = ",";
-        const fmt = (num: number) => `$${num.toFixed(2)}`;
-        const rows: string[] = [];
+    const { data: salesData } = await supabase
+      .from("shift_sales")
+      .select("sell_count, price_at_submit, product_id")
+      .eq("shift_id", shiftId);
 
-        rows.push(`"${shift.shiftDisplayName}"`);
-        rows.push(`"Template: ${template.templateName}"`);
+    const { data: productsData } = await supabase.from("products").select("*");
+    const productMap = new Map(
+      (productsData || []).map((p: SupabaseProductRow) => [p.id, p]),
+    );
+
+    const SEP = ",";
+    const fmt = (num: number) => `$${num.toFixed(2)}`;
+    const rows: string[] = [];
+
+    rows.push(`"${shift.shift_display_name}"`);
+    rows.push(`"Template: ${template?.name || "Unknown"}"`);
+    rows.push("");
+    rows.push(
+      ["Product Name", "Revenue (AUD)", "Unit Price (AUD)", "Units Sold"].join(
+        SEP,
+      ),
+    );
+
+    let grandTotalRevenue = 0;
+    let grandTotalUnits = 0;
+
+    const grouped: Record<string, Record<string, GroupedSaleItem[]>> = {};
+
+    for (const sale of (salesData || []) as SupabaseShiftSaleRow[]) {
+      if (sale.sell_count <= 0) continue;
+      const product = productMap.get(sale.product_id);
+      if (!product) continue;
+
+      const brand = product.brand_main;
+      const subCat = product.sub_category;
+      const count = sale.sell_count;
+      const revenue = count * sale.price_at_submit;
+
+      if (!grouped[brand]) grouped[brand] = {};
+      if (!grouped[brand][subCat]) grouped[brand][subCat] = [];
+
+      grouped[brand][subCat].push({
+        name: product.full_name,
+        count,
+        revenue,
+        price: sale.price_at_submit,
+      });
+
+      grandTotalRevenue += revenue;
+      grandTotalUnits += count;
+    }
+
+    for (const brand of Object.keys(grouped)) {
+      for (const subCat of Object.keys(grouped[brand])) {
         rows.push("");
-        rows.push(
+        rows.push(`"--- ${subCat} ---"`);
+        let subCatRevenue = 0;
+        let subCatUnits = 0;
+
+        for (const item of grouped[brand][subCat]) {
+          subCatRevenue += item.revenue;
+          subCatUnits += item.count;
+          rows.push(
             [
-                "Product Name",
-                "Revenue (AUD)",
-                "Unit Price (AUD)",
-                "Units Sold",
+              `"${item.name}"`,
+              fmt(item.revenue),
+              fmt(item.price),
+              item.count,
             ].join(SEP),
-        );
-
-        const templateProducts = allProducts.filter((p) =>
-            template.brandList.includes(p.brandMain),
-        );
-
-        const brandGroups: Record<string, typeof templateProducts> = {};
-        for (const p of templateProducts) {
-            if (!brandGroups[p.brandMain]) brandGroups[p.brandMain] = [];
-            brandGroups[p.brandMain].push(p);
+          );
         }
 
-        for (const brand of template.brandList) {
-            const brandProducts = brandGroups[brand];
-            if (!brandProducts) continue;
-
-            const subCatGroups: Record<string, typeof brandProducts> = {};
-            for (const p of brandProducts) {
-                if (!subCatGroups[p.subCategory])
-                    subCatGroups[p.subCategory] = [];
-                subCatGroups[p.subCategory].push(p);
-            }
-
-            for (const subCat of Object.keys(subCatGroups)) {
-                rows.push("");
-                rows.push(`"--- ${subCat} ---"`);
-
-                let subCatRevenue = 0;
-                let subCatUnits = 0;
-
-                for (const product of subCatGroups[subCat]) {
-                    const count = salesMap.get(product.id) || 0;
-                    const revenue = count * product.price;
-                    subCatRevenue += revenue;
-                    subCatUnits += count;
-
-                    rows.push(
-                        [
-                            `"${product.fullName}"`,
-                            fmt(revenue),
-                            fmt(product.price),
-                            count,
-                        ].join(SEP),
-                    );
-                }
-
-                rows.push(
-                    [
-                        `"${subCat} Total"`,
-                        fmt(subCatRevenue),
-                        "",
-                        subCatUnits,
-                    ].join(SEP),
-                );
-            }
-        }
-
-        rows.push("");
-        rows.push("----------------------------------------");
         rows.push(
-            [
-                `"GRAND TOTAL"`,
-                fmt(summary.totalRevenue),
-                "",
-                summary.totalCount,
-            ].join(SEP),
+          [`"${subCat} Total"`, fmt(subCatRevenue), "", subCatUnits].join(SEP),
         );
+      }
+    }
 
-        const filename = `${formatExportFilename(shift.recordDate, shift.shiftTimeStart)}_${template.templateName.replace(/\s+/g, "_")}.csv`;
+    rows.push("");
+    rows.push("----------------------------------------");
+    rows.push(
+      [`"GRAND TOTAL"`, fmt(grandTotalRevenue), "", grandTotalUnits].join(SEP),
+    );
 
-        return { content: rows.join("\n"), filename };
-    },
+    const filename = `${formatExportFilename(
+      shift.record_date,
+      shift.time_start,
+      shift.time_end,
+    )}_${(template?.name || "export").replace(/\s+/g, "_")}.csv`;
 
-    /**
-     * Trigger a browser download of a CSV file.
-     */
-    downloadCsv(content: string, filename: string): void {
-        const BOM = "\uFEFF";
-        const blob = new Blob([BOM + content], {
-            type: "text/csv;charset=utf-8;",
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    },
+    return { content: rows.join("\n"), filename };
+  },
+
+  downloadCsv(content: string, filename: string): void {
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + content], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
 };

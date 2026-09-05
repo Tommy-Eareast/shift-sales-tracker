@@ -1,18 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import type { Product } from "../../../types";
-import { productService } from "../services/productService";
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Product } from '../../../types';
+import { productService } from '../services/productService';
 
-type ProductFormData = {
-    brandMain: string;
-    subCategory: string;
-    fullName: string;
-    price: number;
-};
+type ProductFormData = { brandMain: string; subCategory: string; fullName: string; price: number };
 
-/**
- * Hook for managing the product list and CRUD operations.
- * Used by AdminPage.
- */
 export function useProducts() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -22,30 +13,27 @@ export function useProducts() {
         setLoading(true);
         setError(null);
         try {
-            const data = await productService.getSorted();
+            const data = await productService.getAll();
             setProducts(data);
         } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Failed to load products",
-            );
+            setError(err instanceof Error ? err.message : 'Failed to load products');
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        load();
+        const timer = setTimeout(() => {
+            load();
+        }, 0);
+        return () => clearTimeout(timer);
     }, [load]);
 
-    const distinctValues = useMemo(
-        () => productService.getDistinctValues(products),
-        [products],
-    );
+    const distinctValues = useMemo(() => productService.getDistinctValues(products), [products]);
 
     const getSubCategorySuggestions = useCallback(
-        (brandMain: string): string[] =>
-            productService.getSubCategorySuggestions(products, brandMain),
-        [products],
+        (brandMain: string): string[] => productService.getSubCategorySuggestions(products, brandMain),
+        [products]
     );
 
     const add = useCallback(
@@ -53,51 +41,58 @@ export function useProducts() {
             await productService.add(data);
             await load();
         },
-        [load],
+        [load]
     );
 
     const update = useCallback(
         async (id: string, data: Partial<Product>) => {
-            await productService.update(id, data);
-            await load();
+            // Optimistic update
+            setProducts(prev => prev.map(p => (p.id === id ? { ...p, ...data } : p)));
+            try {
+                await productService.update(id, data);
+            } catch (err) {
+                console.error(err);
+                await load(); // Revert on error
+            }
         },
-        [load],
+        [load]
     );
 
     const remove = useCallback(
         async (id: string) => {
-            await productService.delete(id);
-            await load();
+            // Optimistic update
+            setProducts(prev => prev.filter(p => p.id !== id));
+            try {
+                await productService.delete(id);
+            } catch (err) {
+                console.error(err);
+                await load(); // Revert on error
+            }
         },
-        [load],
+        [load]
     );
 
-    const reorderProducts = useCallback(
-        async (
-            brandMain: string,
-            subCategory: string,
-            productIds: string[],
-        ) => {
-            await productService.reorder(brandMain, subCategory, productIds);
-            await load();
-        },
-        [load],
-    );
+    const reorder = useCallback(
+        async (productIds: string[]) => {
+            // Optimistic update: immediately reorder local state
+            setProducts(prev => {
+                const idMap = new Map(prev.map(p => [p.id, p]));
+                return productIds
+                    .map((id, index) => {
+                        const p = idMap.get(id);
+                        return p ? { ...p, sortOrder: index } : null;
+                    })
+                    .filter(Boolean) as Product[];
+            });
 
-    const reorderBrands = useCallback(
-        async (brandOrder: string[]) => {
-            await productService.reorderBrands(brandOrder);
-            await load();
+            try {
+                await productService.reorder(productIds);
+            } catch (err) {
+                console.error(err);
+                await load(); // Revert on error
+            }
         },
-        [load],
-    );
-
-    const reorderSubCategories = useCallback(
-        async (brand: string, subCategoryOrder: string[]) => {
-            await productService.reorderSubCategories(brand, subCategoryOrder);
-            await load();
-        },
-        [load],
+        [load]
     );
 
     return {
@@ -109,9 +104,7 @@ export function useProducts() {
         add,
         update,
         remove,
-        reorderProducts,
-        reorderBrands,
-        reorderSubCategories,
+        reorder,
         refresh: load,
     };
 }

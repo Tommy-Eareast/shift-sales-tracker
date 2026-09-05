@@ -1,109 +1,100 @@
-import { shiftRepo } from "../../../db/shiftRepo";
-import { templateRepo } from "../../../db/templateRepo";
-import { salesRepo } from "../../../db/salesRepo";
-import { productRepo } from "../../../db/productRepo";
+import { getSupabase } from "../../../lib/supabaseClient";
+import type {
+  GroupedSaleItem,
+  SupabaseProductRow,
+} from "../../../types/supabase";
 
-/**
- * Service for generating WhatsApp-friendly text summaries of shifts.
- * Used by ExportPage to copy sales reports to clipboard.
- */
+const supabase = getSupabase();
+
 export const whatsappService = {
-    /**
-     * Generate a human-readable summary of a shift for WhatsApp sharing.
-     * Returns plain text with WhatsApp-style markdown (*bold*, _italic_).
-     */
-    async generateSummary(shiftId: string): Promise<string> {
-        const shift = await shiftRepo.getById(shiftId);
-        if (!shift) throw new Error("Shift not found");
+  async generateSummary(shiftId: string): Promise<string> {
+    const { data: shift } = await supabase
+      .from("shifts")
+      .select("*")
+      .eq("id", shiftId)
+      .maybeSingle();
+    if (!shift) throw new Error("Shift not found");
 
-        const template = await templateRepo.getById(shift.templateId);
-        if (!template) throw new Error("Template not found");
+    const { data: template } = await supabase
+      .from("templates")
+      .select("*")
+      .eq("id", shift.template_id)
+      .maybeSingle();
 
-        const summary = await salesRepo.getSummary(shiftId);
-        const salesData = await salesRepo.getByShift(shiftId);
-        const allProducts = await productRepo.getAll();
+    // Get sales with product_id, then look up products separately
+    const { data: salesData } = await supabase
+      .from("shift_sales")
+      .select("sell_count, price_at_submit, product_id")
+      .eq("shift_id", shiftId);
 
-        const salesMap = new Map<string, number>();
-        salesData.forEach((s) => salesMap.set(s.productId, s.sellCount));
+    const { data: productsData } = await supabase.from("products").select("*");
+    const productMap = new Map(
+      (productsData || []).map((p: SupabaseProductRow) => [p.id, p]),
+    );
 
-        const lines: string[] = [];
+    const lines: string[] = [];
+    lines.push(`📊 *Sales Report - ${shift.shift_display_name}*`);
+    lines.push(`Template: ${template?.name || "Unknown"}`);
+    lines.push("");
 
-        // Header
-        lines.push(`📊 *Sales Report - ${shift.shiftDisplayName}*`);
-        lines.push("");
-        lines.push("");
+    const grouped: Record<string, Record<string, GroupedSaleItem[]>> = {};
+    let totalCount = 0;
+    let totalRevenue = 0;
 
-        // Filter products for this template
-        const templateProducts = allProducts.filter((p) =>
-            template.brandList.includes(p.brandMain),
-        );
+    for (const sale of salesData || []) {
+      if (sale.sell_count <= 0) continue;
+      const product = productMap.get(sale.product_id);
+      if (!product) continue;
 
-        // Group by brand
-        const brandGroups: Record<string, typeof templateProducts> = {};
-        for (const p of templateProducts) {
-            if (!brandGroups[p.brandMain]) brandGroups[p.brandMain] = [];
-            brandGroups[p.brandMain].push(p);
+      const brand = product.brand_main;
+      const subCat = product.sub_category;
+      const count = sale.sell_count;
+      const revenue = count * sale.price_at_submit;
+
+      if (!grouped[brand]) grouped[brand] = {};
+      if (!grouped[brand][subCat]) grouped[brand][subCat] = [];
+      grouped[brand][subCat].push({
+        name: product.full_name,
+        count,
+        price: sale.price_at_submit,
+        revenue,
+      });
+
+      totalCount += count;
+      totalRevenue += revenue;
+    }
+
+    for (const brand of Object.keys(grouped)) {
+      lines.push(`*${brand}*`);
+      for (const subCat of Object.keys(grouped[brand])) {
+        lines.push(`_${subCat}_`);
+        for (const item of grouped[brand][subCat]) {
+          lines.push(
+            `• ${item.name}: ${item.count} × $${item.price} = $${item.revenue}`,
+          );
         }
+      }
+      lines.push("");
+    }
 
-        // Iterate brands in template order
-        for (const brand of template.brandList) {
-            const products = brandGroups[brand];
-            if (!products) continue;
+    lines.push(`💰 *Total: $${totalRevenue}* (${totalCount} units)`);
+    return lines.join("\n");
+  },
 
-            const soldProducts = products.filter(
-                (p) => (salesMap.get(p.id) || 0) > 0,
-            );
-            if (soldProducts.length === 0) continue;
-
-            lines.push(`*${brand}*`);
-
-            // Group by subCategory
-            const subCats: Record<string, typeof products> = {};
-            for (const p of soldProducts) {
-                if (!subCats[p.subCategory]) subCats[p.subCategory] = [];
-                subCats[p.subCategory].push(p);
-            }
-
-            for (const subCat of Object.keys(subCats)) {
-                lines.push(`_${subCat}_`);
-                for (const p of subCats[subCat]) {
-                    const count = salesMap.get(p.id) || 0;
-                    const revenue = count * p.price;
-                    lines.push(
-                        `• ${p.fullName}: ${count} × $${p.price} = $${revenue}`,
-                    );
-                }
-            }
-            lines.push("");
-        }
-
-        // Grand total
-        lines.push(
-            `💰 *Total: $${summary.totalRevenue}* (${summary.totalCount} units)`,
-        );
-
-        return lines.join("\n");
-    },
-
-    /**
-     * Copy text to clipboard with fallback for older browsers.
-     * Returns true if copy succeeded.
-     */
-    async copyToClipboard(text: string): Promise<boolean> {
-        try {
-            await navigator.clipboard.writeText(text);
-            return true;
-        } catch {
-            // Fallback for browsers without clipboard API
-            const textarea = document.createElement("textarea");
-            textarea.value = text;
-            textarea.style.position = "fixed";
-            textarea.style.opacity = "0";
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textarea);
-            return true;
-        }
-    },
+  async copyToClipboard(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return true;
+    }
+  },
 };
