@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useManagerSales } from '../../features/manager/hooks/useManagerSales';
 import { Card } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { ErrorState } from '../../components/ui/ErrorState';
 
 export default function SalesPage() {
     const {
@@ -39,11 +41,7 @@ export default function SalesPage() {
     }, [availableDates, showAllDates]);
 
     if (error) {
-        return (
-            <Card className="p-6 text-center">
-                <p className="text-red-500 text-sm">{error}</p>
-            </Card>
-        );
+        return <ErrorState message={error} />;
     }
 
     const groupItemsBySubCategory = (
@@ -91,12 +89,7 @@ export default function SalesPage() {
             <div className="flex-1">
                 {showSkeleton ? (
                     <Card className="p-5">
-                        <div className="animate-pulse space-y-4">
-                            <div className="h-6 bg-stone-100 rounded w-1/3" />
-                            <div className="h-10 bg-stone-100 rounded" />
-                            <div className="h-32 bg-stone-100 rounded-xl" />
-                            <div className="h-32 bg-stone-100 rounded-xl" />
-                        </div>
+                        <Skeleton rows={4} height="h-8" />
                     </Card>
                 ) : selectedTemplateId ? (
                     <Card

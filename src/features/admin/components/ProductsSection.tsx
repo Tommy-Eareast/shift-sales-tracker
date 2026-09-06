@@ -3,8 +3,12 @@ import { useProducts } from '../../products/hooks/useProducts';
 import { orderingService } from '../../products/services/orderingService';
 import { useExpandable } from '../../../hooks/useExpandable';
 import { Card, CardHeader } from '../../../components/ui/Card';
+import { Skeleton } from '../../../components/ui/Skeleton';
 import { ProductFormModal } from './ProductFormModal';
 import { ConfirmModal } from '../../../components/ui/ConfirmModal';
+import { SortableBrandHeader } from './SortableBrandHeader';
+import { SortableSubCatWrapper } from './SortableSubCatWrapper';
+import { SortableProductItem } from './SortableProductItem';
 import { validateProduct } from '../../../utils/validation';
 import type { Product } from '../../../types';
 import {
@@ -20,142 +24,8 @@ import {
     arrayMove,
     SortableContext,
     sortableKeyboardCoordinates,
-    useSortable,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-
-function SortableBrandHeader({
-    brand,
-    isExpanded,
-    onToggle,
-}: {
-    brand: string;
-    isExpanded: boolean;
-    onToggle: () => void;
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: brand });
-
-    return (
-        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className="mb-2">
-            <div className="flex items-center w-full p-3 bg-stone-50 rounded-xl hover:bg-stone-100 transition-colors">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="cursor-grab active:cursor-grabbing p-1.5 hover:bg-stone-200 rounded touch-none flex-shrink-0"
-                >
-                    <svg className="w-4 h-4 text-stone-300" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
-                    </svg>
-                </button>
-                <button onClick={onToggle} className="flex-1 flex items-center justify-between ml-2">
-                    <span className="font-semibold text-stone-900 text-sm">{brand}</span>
-                    <span className="text-stone-300 text-xs">{isExpanded ? '▾' : '▸'}</span>
-                </button>
-            </div>
-        </div>
-    );
-}
-
-function SortableSubCatHeader({
-    subCat,
-    count,
-    isExpanded,
-    onToggle,
-}: {
-    subCat: string;
-    count: number;
-    isExpanded: boolean;
-    onToggle: () => void;
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subCat });
-
-    return (
-        <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
-            <div className="flex items-center w-full hover:bg-stone-50 rounded-lg">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="cursor-grab active:cursor-grabbing p-1.5 hover:bg-stone-200 rounded touch-none flex-shrink-0"
-                >
-                    <svg className="w-3.5 h-3.5 text-stone-300" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
-                    </svg>
-                </button>
-                <button onClick={onToggle} className="flex-1 flex items-center justify-between px-3 py-2 text-left">
-                    <p className="text-xs font-medium text-stone-500 uppercase tracking-wider">
-                        {subCat} ({count})
-                    </p>
-                    <span className="text-stone-300 text-xs">{isExpanded ? '▾' : '▸'}</span>
-                </button>
-            </div>
-        </div>
-    );
-}
-
-function SortableProductItem({
-    product,
-    onEdit,
-    onDelete,
-}: {
-    product: Product;
-    onEdit: (p: Product) => void;
-    onDelete: (id: string) => void;
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: product.id });
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={{ transform: CSS.Transform.toString(transform), transition }}
-            className="flex items-center justify-between p-2.5 hover:bg-stone-50 rounded-lg text-sm"
-        >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-stone-200 rounded touch-none flex-shrink-0"
-                >
-                    <svg className="w-3.5 h-3.5 text-stone-300" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
-                    </svg>
-                </button>
-                <span className="text-stone-700 truncate text-sm">{product.fullName}</span>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-stone-400 text-xs">${product.price}</span>
-                <div className="flex items-center gap-0.5">
-                    <button
-                        onClick={() => onEdit(product)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                        </svg>
-                    </button>
-                    <button
-                        onClick={() => onDelete(product.id)}
-                        className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50"
-                    >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 export function ProductsSection() {
     const {
@@ -319,12 +189,7 @@ export function ProductsSection() {
             {error ? (
                 <div className="text-red-500 text-sm py-4 text-center">{error}</div>
             ) : loading ? (
-                <div className="animate-pulse space-y-2">
-                    <div className="h-10 bg-stone-100 rounded-xl" />
-                    <div className="h-10 bg-stone-100 rounded-xl" />
-                    <div className="h-10 bg-stone-100 rounded-xl" />
-                    <div className="h-10 bg-stone-100 rounded-xl" />
-                </div>
+                <Skeleton rows={4} height="h-10" />
             ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBrandDragEnd}>
                     <SortableContext items={displayBrandOrder} strategy={verticalListSortingStrategy}>
@@ -356,7 +221,7 @@ export function ProductsSection() {
                                                                 const subKey = `${brand}::${subCat}`;
                                                                 return (
                                                                     <div key={subCat}>
-                                                                        <SortableSubCatHeader
+                                                                        <SortableSubCatWrapper
                                                                             subCat={subCat}
                                                                             count={prods.length}
                                                                             isExpanded={subCatExpand.isExpanded(subKey)}

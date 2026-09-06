@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useMembers } from '../../auth/hooks/useMembers';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { Card, CardHeader } from '../../../components/ui/Card';
+import { Skeleton } from '../../../components/ui/Skeleton';
 import { TeamMembersModal } from './TeamMembersModal';
 import { ConfirmModal } from '../../../components/ui/ConfirmModal';
+import { DragHandleIcon, DeleteIcon } from '../../../components/ui/icons';
 import type { UserProfile } from '../../auth/services/authService';
 import {
     DndContext,
@@ -22,7 +25,15 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function SortableMemberItem({ member, onRemove }: { member: UserProfile; onRemove: (id: string) => void }) {
+function SortableMemberItem({
+    member,
+    onRemove,
+    isSelf,
+}: {
+    member: UserProfile;
+    onRemove: (id: string) => void;
+    isSelf: boolean;
+}) {
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: member.id });
 
     return (
@@ -37,12 +48,13 @@ function SortableMemberItem({ member, onRemove }: { member: UserProfile; onRemov
                     {...listeners}
                     className="cursor-grab active:cursor-grabbing p-1.5 hover:bg-stone-200 rounded touch-none flex-shrink-0"
                 >
-                    <svg className="w-4 h-4 text-stone-300" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z" />
-                    </svg>
+                    <DragHandleIcon className="w-4 h-4" />
                 </button>
                 <div>
-                    <p className="font-medium text-stone-900 text-sm">{member.display_name}</p>
+                    <p className="font-medium text-stone-900 text-sm">
+                        {member.display_name}
+                        {isSelf && <span className="ml-2 text-[10px] text-stone-400">(You)</span>}
+                    </p>
                     <p className="text-xs text-stone-400">{member.email}</p>
                 </div>
             </div>
@@ -52,19 +64,14 @@ function SortableMemberItem({ member, onRemove }: { member: UserProfile; onRemov
                 >
                     {member.role}
                 </span>
-                <button
-                    onClick={() => onRemove(member.id)}
-                    className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                    </svg>
-                </button>
+                {!isSelf && (
+                    <button
+                        onClick={() => onRemove(member.id)}
+                        className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                        <DeleteIcon className="w-4 h-4" />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -72,6 +79,7 @@ function SortableMemberItem({ member, onRemove }: { member: UserProfile; onRemov
 
 export function MembersSection() {
     const { members, loading, error, add, remove, reorder } = useMembers();
+    const { profile: currentProfile } = useAuth();
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -108,6 +116,11 @@ export function MembersSection() {
         }
     };
 
+    const handleRemoveRequest = (member: UserProfile) => {
+        if (currentProfile && member.id === currentProfile.id) return;
+        setDeleteTarget({ id: member.id, name: member.display_name });
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -127,11 +140,7 @@ export function MembersSection() {
             {error ? (
                 <div className="text-red-500 text-sm py-4 text-center">{error}</div>
             ) : loading ? (
-                <div className="animate-pulse space-y-2">
-                    <div className="h-12 bg-stone-100 rounded-xl" />
-                    <div className="h-12 bg-stone-100 rounded-xl" />
-                    <div className="h-12 bg-stone-100 rounded-xl" />
-                </div>
+                <Skeleton rows={3} height="h-12" />
             ) : (
                 <>
                     {/* Promoters */}
@@ -150,7 +159,8 @@ export function MembersSection() {
                                         <SortableMemberItem
                                             key={member.id}
                                             member={member}
-                                            onRemove={id => setDeleteTarget({ id, name: member.display_name })}
+                                            isSelf={currentProfile?.id === member.id}
+                                            onRemove={() => handleRemoveRequest(member)}
                                         />
                                     ))}
                                 </div>
@@ -174,7 +184,8 @@ export function MembersSection() {
                                         <SortableMemberItem
                                             key={member.id}
                                             member={member}
-                                            onRemove={id => setDeleteTarget({ id, name: member.display_name })}
+                                            isSelf={currentProfile?.id === member.id}
+                                            onRemove={() => handleRemoveRequest(member)}
                                         />
                                     ))}
                                 </div>

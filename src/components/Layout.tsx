@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { LoginModal } from '../features/auth/components/LoginModal';
 import { ConfirmModal } from './ui/ConfirmModal';
+import { Skeleton } from './ui/Skeleton';
 import { promoterTabs, managerTabs } from './navigation/tabs';
 
 export default function Layout() {
@@ -92,12 +93,7 @@ export default function Layout() {
                         <div className="text-stone-400 text-sm">Please log in to continue</div>
                     </div>
                 ) : (
-                    <div className="animate-pulse space-y-4">
-                        <div className="h-24 bg-stone-100 rounded-2xl" />
-                        <div className="h-12 bg-stone-100 rounded-2xl" />
-                        <div className="h-12 bg-stone-100 rounded-2xl" />
-                        <div className="h-12 bg-stone-100 rounded-2xl" />
-                    </div>
+                    <Skeleton rows={4} height="h-12" />
                 )}
             </main>
 

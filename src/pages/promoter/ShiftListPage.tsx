@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useShifts } from '../../features/shifts/hooks/useShifts';
 import { useTemplates } from '../../features/templates/hooks/useTemplates';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { AlertModal } from '../../components/ui/AlertModal';
 import { NewShiftModal } from '../../features/shifts/components/NewShiftModal';
 import { EditShiftModal } from '../../features/shifts/components/EditShiftModal';
+import { EditIcon, DeleteIcon } from '../../components/ui/icons';
 
 export default function ShiftListPage() {
     const navigate = useNavigate();
@@ -73,19 +76,6 @@ export default function ShiftListPage() {
         setDeleteTarget(null);
     };
 
-    if (loading)
-        return (
-            <div className="flex items-center justify-center py-12">
-                <div className="text-stone-400 text-sm">Loading...</div>
-            </div>
-        );
-    if (error)
-        return (
-            <Card className="p-6 text-center">
-                <p className="text-red-500 text-sm">{error}</p>
-            </Card>
-        );
-
     const submittedCount = shifts.filter(s => s.status === 'submitted').length;
     const lastShift = shifts.length > 0 ? shifts[0] : null;
     const lastShiftTemplate = lastShift ? templates.find(t => t.templateId === lastShift.templateId) : null;
@@ -126,14 +116,7 @@ export default function ShiftListPage() {
                                 }}
                                 className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-50"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={1.5}
-                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                </svg>
+                                <EditIcon className="w-4 h-4" />
                             </button>
                         )}
                         <button
@@ -143,14 +126,7 @@ export default function ShiftListPage() {
                             }}
                             className="p-1.5 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50"
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={1.5}
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                            </svg>
+                            <DeleteIcon className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -160,6 +136,23 @@ export default function ShiftListPage() {
 
     const draftShifts = shifts.filter(s => s.status === 'draft');
     const submittedShifts = shifts.filter(s => s.status === 'submitted');
+
+    if (loading) {
+        return (
+            <div className="space-y-3">
+                <Skeleton rows={2} height="h-20" />
+                <Skeleton rows={3} height="h-20" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Card className="p-6 text-center">
+                <p className="text-red-500 text-sm">{error}</p>
+            </Card>
+        );
+    }
 
     return (
         <div>
@@ -190,14 +183,13 @@ export default function ShiftListPage() {
             </CardHeader>
 
             {shifts.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <div className="text-4xl mb-3">⚱️</div>
-                    <p className="text-stone-500 font-medium">No shifts recorded yet</p>
-                    <p className="text-sm text-stone-400 mt-1">Create your first shift to start tracking sales</p>
-                </Card>
+                <EmptyState
+                    icon="⚱️"
+                    title="No shifts recorded yet"
+                    description="Create your first shift to start tracking sales"
+                />
             ) : (
                 <>
-                    {/* Draft Section */}
                     {draftShifts.length > 0 && (
                         <div className="mb-6">
                             <p className="text-xs font-medium text-amber-600 uppercase tracking-wider mb-2">
@@ -207,7 +199,6 @@ export default function ShiftListPage() {
                         </div>
                     )}
 
-                    {/* Submitted Section */}
                     {submittedShifts.length > 0 && (
                         <div>
                             <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-2">

@@ -1,5 +1,6 @@
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
+import { inputClass } from '../../../utils/styles';
 
 type Props = {
     isOpen: boolean;
@@ -12,12 +13,9 @@ type Props = {
     onSave: () => void;
 };
 
-const inputClass =
-    'w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-900 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-300 transition-all';
-
 export function TemplateFormModal({ isOpen, onClose, editingTemplate, form, onChange, error, brands, onSave }: Props) {
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={editingTemplate ? 'Edit Template' : 'New Template'}>
+        <Modal isOpen={isOpen} onClose={onClose} title={editingTemplate ? 'Edit Template' : 'New Template'} persistent>
             {error && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
                     <p className="text-sm text-red-600">{error}</p>
