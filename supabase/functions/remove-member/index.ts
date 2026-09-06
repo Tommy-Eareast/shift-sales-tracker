@@ -41,7 +41,7 @@ serve(async req => {
 
         const { userId } = await req.json();
 
-        // Delete profile
+        // Delete profile — CASCADE will delete shifts, shift_sales, submitted_shifts
         const { error: profileError } = await supabaseAdmin.from('profiles').delete().eq('id', userId);
 
         if (profileError) {
@@ -66,6 +66,7 @@ serve(async req => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     } catch (err) {
+        console.error('Edge function error:', err);
         return new Response(JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

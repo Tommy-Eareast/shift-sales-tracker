@@ -95,19 +95,39 @@ npm run test:watch  # Watch mode
 npm run test:coverage  # Coverage report
 ```
 
-# Deployment
+## Deployment
 
-Frontend: Netlify
-Backend: Supabase (Database + Auth + Edge Functions)
+### Frontend: Vercel
 
-# ENV
+1. Push code to GitHub
+2. Import repo in Vercel
+3. Add Environment Variables:
+    - `VITE_SUPABASE_URL` = your Supabase project URL
+    - `VITE_SUPABASE_ANON_KEY` = your Supabase anon/public key
+4. Deploy
 
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
+> **Note:** Do NOT add `VITE_SUPABASE_SERVICE_KEY` to Vercel.
+> The service role key is only used in Edge Functions and should never be exposed to the browser.
 
-# Edge Func
+### Backend: Supabase
 
+#### Database
+
+- Run SQL schema in Supabase SQL Editor
+- Enable Row Level Security policies
+
+#### Edge Functions
+
+```bash
 npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
+
+# Set secrets for Edge Functions
+npx supabase secrets set SUPABASE_URL=your-project-url
+npx supabase secrets set SUPABASE_ANON_KEY=your-anon-key
+npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Deploy functions
 npx supabase functions deploy create-member
 npx supabase functions deploy remove-member
+```
