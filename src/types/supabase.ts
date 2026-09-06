@@ -52,4 +52,4 @@ export type SupabaseProfileRow = {
     created_at: string;
 };
 
-export type GroupedSaleItem = { fullName: string; count: number; price: number; revenue: number };
+export type GroupedSaleItem = { fullName: string; subCategory: string; price: number; count: number; revenue: number };

@@ -58,6 +58,7 @@ export const managerService = {
             templateName: t.name,
             brandList: t.brand_list || [],
             sortOrder: t.sort_order,
+            exportProfile: t.export_profile || 'default',
             createdAt: t.created_at,
         }));
     },
