@@ -17,6 +17,7 @@ export default function ShiftEditPage() {
     const brandExpand = useExpandable();
     const subCatExpand = useExpandable();
     const [showSubmitModal, setShowSubmitModal] = useState(false);
+    const [showSoldDetails, setShowSoldDetails] = useState(false);
 
     if (loading) {
         return (
@@ -50,24 +51,86 @@ export default function ShiftEditPage() {
         setShowSubmitModal(false);
     };
 
+    // Compute sold items — only products with sellCount > 0
+    const soldItems = products
+        .filter(p => (sales.get(p.id) || 0) > 0)
+        .map(p => ({ product: p, count: sales.get(p.id) || 0, revenue: (sales.get(p.id) || 0) * p.price }));
+
+    // Group sold items by subcategory for display
+    const soldGrouped: Record<string, typeof soldItems> = {};
+    for (const item of soldItems) {
+        const key = `${item.product.brandMain} — ${item.product.subCategory}`;
+        if (!soldGrouped[key]) soldGrouped[key] = [];
+        soldGrouped[key].push(item);
+    }
+
     return (
         <div className="space-y-4 pb-28">
             <ShiftHeader shift={shift} template={template} summary={summary} />
 
-            <div className="flex items-center gap-2">
-                {isSubmitted ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        Submitted
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        Draft
-                    </span>
+            {/* Status + Sold toggle */}
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                    {isSubmitted ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Submitted
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Draft
+                        </span>
+                    )}
+                    {shift.note && <p className="text-xs text-stone-400 truncate">{shift.note}</p>}
+                </div>
+                {soldItems.length > 0 && (
+                    <button
+                        onClick={() => setShowSoldDetails(!showSoldDetails)}
+                        className="text-xs font-medium transition-colors hover:opacity-80 flex-shrink-0"
+                        style={{ color: '#5b8c7a' }}
+                    >
+                        {showSoldDetails ? 'Hide sold items' : `View sold items (${soldItems.length})`}
+                    </button>
                 )}
-                {shift.note && <p className="text-xs text-stone-400 truncate">{shift.note}</p>}
             </div>
+
+            {/* Sold items panel */}
+            {showSoldDetails && soldItems.length > 0 && (
+                <Card className="p-4">
+                    <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-3">Items Sold</p>
+                    <div className="space-y-3">
+                        {Object.entries(soldGrouped).map(([groupKey, items]) => (
+                            <div key={groupKey}>
+                                <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">
+                                    {groupKey}
+                                </p>
+                                <div className="space-y-0.5">
+                                    {items.map(({ product, count, revenue }) => {
+                                        const displayName = product.fullName.startsWith(product.brandMain)
+                                            ? product.fullName.slice(product.brandMain.length).trim()
+                                            : product.fullName;
+                                        return (
+                                            <div
+                                                key={product.id}
+                                                className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm px-1 py-1"
+                                            >
+                                                <span className="text-stone-700 truncate">{displayName}</span>
+                                                <span className="text-stone-600 text-right font-medium w-8 text-center">
+                                                    {count}
+                                                </span>
+                                                <span className="text-stone-600 text-right font-medium min-w-[60px]">
+                                                    ${revenue.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
 
             <div className="space-y-3">
                 {displayBrandOrder.map(brand => {

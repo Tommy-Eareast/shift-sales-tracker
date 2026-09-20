@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ShiftRecord } from '../../types';
+import type { ShiftRecord, ShiftTemplate } from '../../types';
 import { shiftService } from '../../features/shifts/services/shiftService';
 import { exportService } from '../../features/export/services/exportService';
 import { whatsappService } from '../../features/export/services/whatsappService';
@@ -12,21 +12,16 @@ import { formatExportFilename } from '../../utils/date';
 
 export default function PromoterExportPage() {
     const [shifts, setShifts] = useState<ShiftRecord[]>([]);
-    const [templates, setTemplates] = useState<Record<string, string>>({});
+    const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
     const [selectedShift, setSelectedShift] = useState('');
     const [exporting, setExporting] = useState(false);
     const [copied, setCopied] = useState(false);
     const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
     useEffect(() => {
-        shiftService.getAll().then(async data => {
-            setShifts(data);
-            const templateMap: Record<string, string> = {};
-            for (const shift of data) {
-                const t = await templateService.getById(shift.templateId);
-                templateMap[shift.templateId] = t?.templateName || 'Unknown';
-            }
-            setTemplates(templateMap);
+        Promise.all([shiftService.getAll(), templateService.getAll()]).then(([shiftData, templateData]) => {
+            setShifts(shiftData);
+            setTemplates(templateData);
         });
     }, []);
 
@@ -59,8 +54,22 @@ export default function PromoterExportPage() {
         }
     };
 
+    const getTemplateName = (templateId: string): string =>
+        templates.find(t => t.templateId === templateId)?.templateName || 'Unknown';
+
+    // Group shifts by template
+    const shiftsByTemplate: Record<string, ShiftRecord[]> = {};
+    for (const shift of shifts) {
+        const templateName = getTemplateName(shift.templateId);
+        if (!shiftsByTemplate[templateName]) shiftsByTemplate[templateName] = [];
+        shiftsByTemplate[templateName].push(shift);
+    }
+
+    // Sort templates alphabetically, keep shifts in existing order (newest first)
+    const templateNames = Object.keys(shiftsByTemplate).sort();
+
     const selectedShiftData = shifts.find(s => s.shiftId === selectedShift);
-    const templateName = selectedShiftData ? templates[selectedShiftData.templateId] || 'Unknown' : '';
+    const templateName = selectedShiftData ? getTemplateName(selectedShiftData.templateId) : '';
 
     return (
         <div className="space-y-4">
@@ -93,10 +102,14 @@ export default function PromoterExportPage() {
                     className={`${inputClass} mb-4`}
                 >
                     <option value="">Select a shift...</option>
-                    {shifts.map(shift => (
-                        <option key={shift.shiftId} value={shift.shiftId}>
-                            {shift.shiftDisplayName}
-                        </option>
+                    {templateNames.map(tName => (
+                        <optgroup key={tName} label={tName}>
+                            {shiftsByTemplate[tName].map(shift => (
+                                <option key={shift.shiftId} value={shift.shiftId}>
+                                    {shift.shiftDisplayName}
+                                </option>
+                            ))}
+                        </optgroup>
                     ))}
                 </select>
 
