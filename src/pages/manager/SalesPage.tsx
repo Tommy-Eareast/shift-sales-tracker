@@ -32,13 +32,23 @@ export default function SalesPage() {
     const showSkeleton = loading && !hasLoadedOnce;
     const isSwitching = loading && hasLoadedOnce;
 
-    const visibleDates = useMemo(() => {
-        if (showAllDates) return availableDates;
+    // Compute recent dates (within 14 days) and older dates separately
+    const { recentDates, olderDates } = useMemo(() => {
         const fourteenDaysAgo = new Date();
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
         const cutoff = fourteenDaysAgo.toISOString().split('T')[0];
-        return availableDates.filter(date => date >= cutoff);
-    }, [availableDates, showAllDates]);
+
+        const recent = availableDates.filter(date => date >= cutoff);
+        const older = availableDates.filter(date => date < cutoff);
+        return { recentDates: recent, olderDates: older };
+    }, [availableDates]);
+
+    // Dates shown in the tab row
+    const visibleDates = showAllDates ? [...recentDates, ...olderDates] : recentDates;
+
+    // Toggle visibility: show if there are older dates OR if we're already showing all
+    const hasOlderDates = olderDates.length > 0;
+    const showToggle = hasOlderDates || showAllDates;
 
     if (error) {
         return <ErrorState message={error} />;
@@ -120,15 +130,15 @@ export default function SalesPage() {
                                     ))}
                                 </div>
 
-                                {/* Expand/Collapse */}
-                                {availableDates.length > visibleDates.length && (
+                                {/* Toggle: show/hide older dates */}
+                                {showToggle && (
                                     <button
                                         onClick={() => setShowAllDates(!showAllDates)}
                                         className="text-xs text-stone-400 hover:text-stone-600 mb-4"
                                     >
                                         {showAllDates
-                                            ? 'Show recent 14 days only'
-                                            : `Show all dates (${availableDates.length - visibleDates.length} more)`}
+                                            ? 'Hide older dates'
+                                            : `Show all dates (${olderDates.length} more)`}
                                     </button>
                                 )}
 

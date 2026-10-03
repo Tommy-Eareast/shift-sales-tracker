@@ -8,9 +8,24 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { AlertModal } from '../../components/ui/AlertModal';
+import { CopyButton } from '../../components/ui/CopyButton';
+import { EditIcon, DeleteIcon } from '../../components/ui/icons';
 import { NewShiftModal } from '../../features/shifts/components/NewShiftModal';
 import { EditShiftModal } from '../../features/shifts/components/EditShiftModal';
-import { EditIcon, DeleteIcon } from '../../components/ui/icons';
+import type { ShiftRecord } from '../../types';
+
+/**
+ * Days threshold — matches the manager's Sales page window.
+ * Submitted shifts older than this move to the History page.
+ */
+const HISTORY_THRESHOLD_DAYS = 14;
+
+function isWithinDays(dateString: string, days: number): boolean {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    return dateString >= cutoffStr;
+}
 
 export default function ShiftListPage() {
     const navigate = useNavigate();
@@ -76,11 +91,17 @@ export default function ShiftListPage() {
         setDeleteTarget(null);
     };
 
+    // Split: drafts always shown; submitted only if within threshold
+    const draftShifts = shifts.filter(s => s.status === 'draft');
+    const recentSubmittedShifts = shifts.filter(
+        s => s.status === 'submitted' && isWithinDays(s.recordDate, HISTORY_THRESHOLD_DAYS)
+    );
+
     const submittedCount = shifts.filter(s => s.status === 'submitted').length;
     const lastShift = shifts.length > 0 ? shifts[0] : null;
     const lastShiftTemplate = lastShift ? templates.find(t => t.templateId === lastShift.templateId) : null;
 
-    const renderShiftCard = (shift: (typeof shifts)[0]) => {
+    const renderShiftCard = (shift: ShiftRecord) => {
         const t = templates.find(x => x.templateId === shift.templateId);
         const s = summaries[shift.shiftId];
         const isDraft = shift.status === 'draft';
@@ -108,6 +129,10 @@ export default function ShiftListPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-0.5 ml-2">
+                        <CopyButton
+                            shiftId={shift.shiftId}
+                            onError={msg => setAlertInfo({ title: 'Error', message: msg })}
+                        />
                         {isDraft && (
                             <button
                                 onClick={e => {
@@ -133,9 +158,6 @@ export default function ShiftListPage() {
             </Card>
         );
     };
-
-    const draftShifts = shifts.filter(s => s.status === 'draft');
-    const submittedShifts = shifts.filter(s => s.status === 'submitted');
 
     if (loading) {
         return (
@@ -182,7 +204,7 @@ export default function ShiftListPage() {
                 </Button>
             </CardHeader>
 
-            {shifts.length === 0 ? (
+            {draftShifts.length === 0 && recentSubmittedShifts.length === 0 ? (
                 <EmptyState
                     icon="⚱️"
                     title="No shifts recorded yet"
@@ -199,14 +221,22 @@ export default function ShiftListPage() {
                         </div>
                     )}
 
-                    {submittedShifts.length > 0 && (
+                    {recentSubmittedShifts.length > 0 && (
                         <div>
                             <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider mb-2">
-                                Submitted ({submittedShifts.length})
+                                Submitted ({recentSubmittedShifts.length})
                             </p>
-                            <div className="space-y-3">{submittedShifts.map(renderShiftCard)}</div>
+                            <div className="space-y-3">{recentSubmittedShifts.map(renderShiftCard)}</div>
                         </div>
                     )}
+
+                    <p className="text-xs text-stone-400 text-center mt-6">
+                        Older submissions are in the{' '}
+                        <button onClick={() => navigate('/history')} className="underline hover:text-stone-600">
+                            History
+                        </button>{' '}
+                        tab
+                    </p>
                 </>
             )}
 

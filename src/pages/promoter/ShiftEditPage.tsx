@@ -208,7 +208,7 @@ export default function ShiftEditPage() {
 
             {/* Bottom Bar */}
             <div
-                className="fixed bottom-[57px] left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-stone-200/60 z-10"
+                className="fixed bottom-[70px] left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-stone-200/60 z-10"
                 style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.04)' }}
             >
                 <div className="max-w-2xl mx-auto px-5 py-2.5">

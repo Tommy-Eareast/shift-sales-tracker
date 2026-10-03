@@ -17,12 +17,16 @@ export default function Layout() {
     const tabs = isManager ? managerTabs : promoterTabs;
 
     useEffect(() => {
-        if (loading) return;
-        if (isLoggedIn && isManager && !location.pathname.startsWith('/manager')) {
-            navigate('/manager/sales', { replace: true });
-        }
-        if (isLoggedIn && !isManager && location.pathname.startsWith('/manager')) {
-            navigate('/', { replace: true });
+        if (loading || !isLoggedIn) return;
+        const path = location.pathname;
+        if (isManager) {
+            if (path === '/' || path.startsWith('/history') || path === '/export' || path.startsWith('/shift/')) {
+                navigate('/manager/sales', { replace: true });
+            }
+        } else {
+            if (path.startsWith('/manager')) {
+                navigate('/', { replace: true });
+            }
         }
     }, [isLoggedIn, isManager, loading, location.pathname, navigate]);
 
@@ -34,6 +38,7 @@ export default function Layout() {
             if (location.pathname.startsWith('/manager/admin')) return '/manager/admin';
             return '/manager/sales';
         }
+        if (location.pathname.startsWith('/history')) return '/history';
         if (location.pathname.startsWith('/export')) return '/export';
         return '/';
     };
