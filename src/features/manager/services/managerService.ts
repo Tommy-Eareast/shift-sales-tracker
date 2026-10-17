@@ -6,6 +6,7 @@ import type { ProfileInput } from '../../export/profiles/types';
 const supabase = getSupabase();
 
 export type ManagerShiftView = {
+    submittedShiftId: string;
     shiftId: string;
     templateId: string;
     templateName: string;
@@ -64,17 +65,27 @@ export const managerService = {
     },
 
     async getSubmittedShifts(): Promise<ManagerShiftView[]> {
+        // Query the active view (excludes soft-deleted rows)
         const { data, error } = await supabase
-            .from('submitted_shifts')
+            .from('active_submitted_shifts')
             .select('*')
-            .order('record_date', { ascending: false });
+            .order('record_date', { ascending: false })
+            .order('submitted_at', { ascending: false });
 
         if (error) {
             console.error('getSubmittedShifts error:', error.message);
             throw new Error(error.message);
         }
 
-        const shifts = (data || []) as SubmittedShiftRow[];
+        const rawShifts = (data || []) as SubmittedShiftRow[];
+
+        // Dedupe by shift_id — keep first occurrence (most recent submitted_at)
+        const seenShiftIds = new Set<string>();
+        const shifts = rawShifts.filter(s => {
+            if (seenShiftIds.has(s.shift_id)) return false;
+            seenShiftIds.add(s.shift_id);
+            return true;
+        });
 
         const { data: profilesData } = await supabase.from('profiles').select('id, display_name');
 
@@ -84,6 +95,7 @@ export const managerService = {
         }
 
         return shifts.map(shift => ({
+            submittedShiftId: shift.id,
             shiftId: shift.shift_id,
             templateId: shift.template_id,
             templateName: shift.template_name,
@@ -110,14 +122,9 @@ export const managerService = {
             .sort((a, b) => a.shiftTimeStart.localeCompare(b.shiftTimeStart));
     },
 
-    /**
-     * Get all data needed for export profiles.
-     * Fetches submitted shifts + products for a template within a date range.
-     */
     async getExportInput(templateId: string, startDate: string, endDate: string): Promise<ProfileInput> {
-        // Fetch submitted shifts for this template + date range
         const { data: shiftsData, error: shiftsError } = await supabase
-            .from('submitted_shifts')
+            .from('active_submitted_shifts')
             .select('*')
             .eq('template_id', templateId)
             .gte('record_date', startDate)
@@ -126,7 +133,6 @@ export const managerService = {
 
         if (shiftsError) throw new Error(shiftsError.message);
 
-        // Fetch profiles for promoter names
         const { data: profilesData } = await supabase.from('profiles').select('id, display_name');
 
         const profileMap = new Map<string, string>();
@@ -134,7 +140,6 @@ export const managerService = {
             profileMap.set(p.id, p.display_name);
         }
 
-        // Fetch template brand list
         const { data: templateData } = await supabase
             .from('templates')
             .select('brand_list')
@@ -160,11 +165,9 @@ export const managerService = {
             }));
         }
 
-        // Build submitted shifts with items
         const submittedShifts: ProfileInput['submittedShifts'] = [];
 
         for (const shift of (shiftsData || []) as SubmittedShiftRow[]) {
-            // Parse sales_json — it contains { fullName, subCategory, price, count, revenue }
             const rawItems = JSON.parse(shift.sales_json || '[]') as {
                 fullName: string;
                 subCategory: string;
@@ -173,7 +176,6 @@ export const managerService = {
                 revenue: number;
             }[];
 
-            // Attach export_category
             const productMap = new Map(products.map(p => [p.fullName, p]));
             const enrichedItems = rawItems.map(item => ({
                 fullName: item.fullName,
@@ -199,41 +201,42 @@ export const managerService = {
         return { startDate, endDate, submittedShifts, products };
     },
 
-    async getExportData(templateId: string, startDate: string, endDate: string): Promise<ExportRow[]> {
-        const { data: shiftsData, error: shiftsError } = await supabase
+    /**
+     * Soft-delete submitted shifts by their IDs.
+     * Sets deleted_at; rows remain in DB but disappear from active_submitted_shifts view.
+     */
+    async softDeleteShifts(submittedShiftIds: string[]): Promise<void> {
+        if (submittedShiftIds.length === 0) {
+            console.warn('softDeleteShifts called with empty array — nothing to delete');
+            return;
+        }
+
+        // Guard against undefined IDs (defensive — indicates a mapping bug upstream)
+        const validIds = submittedShiftIds.filter(id => typeof id === 'string' && id.length > 0);
+        if (validIds.length !== submittedShiftIds.length) {
+            console.error('Some submittedShiftIds are invalid:', submittedShiftIds);
+            throw new Error('Invalid shift IDs provided for deletion');
+        }
+
+        const { data, error } = await supabase
             .from('submitted_shifts')
-            .select('*')
-            .eq('template_id', templateId)
-            .gte('record_date', startDate)
-            .lte('record_date', endDate)
-            .order('record_date');
+            .update({ deleted_at: new Date().toISOString() })
+            .in('id', validIds)
+            .select('id');
 
-        if (shiftsError) throw new Error(shiftsError.message);
-
-        const shifts = (shiftsData || []) as SubmittedShiftRow[];
-
-        const { data: profilesData } = await supabase.from('profiles').select('id, display_name');
-
-        const profileMap = new Map<string, string>();
-        for (const p of (profilesData || []) as ProfileSummary[]) {
-            profileMap.set(p.id, p.display_name);
+        if (error) {
+            console.error('softDeleteShifts error:', error);
+            throw new Error(error.message);
         }
 
-        const rows: ExportRow[] = [];
-
-        for (const shift of shifts) {
-            const salesJson = JSON.parse(shift.sales_json || '[]') as GroupedSaleItem[];
-
-            rows.push({
-                promoterName: profileMap.get(shift.user_id) || 'Unknown',
-                shiftDate: shift.record_date,
-                shiftTime: `${shift.time_start}-${shift.time_end}`,
-                items: salesJson,
-                totalCount: shift.total_count,
-                totalRevenue: shift.total_revenue,
-            });
+        // Verify that the rows were actually updated
+        if (!data || data.length === 0) {
+            console.error('softDeleteShifts: 0 rows updated. IDs:', validIds);
+            throw new Error(
+                'No rows were deleted. This may be an RLS permission issue. Please check Supabase policies.'
+            );
         }
 
-        return rows;
+        console.log(`softDeleteShifts: ${data.length} row(s) deleted`);
     },
 };

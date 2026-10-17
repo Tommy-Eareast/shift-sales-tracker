@@ -289,8 +289,26 @@ export const shiftService = {
             throw new Error(`Shift submitted but status not updated: ${updateError.message}`);
         }
     },
+
     async delete(shiftId: string): Promise<void> {
         const { error } = await supabase.from('shifts').delete().eq('id', shiftId);
+        if (error) throw new Error(error.message);
+    },
+
+    /**
+     * Delete multiple shifts in one operation.
+     * - Drafts: hard-delete (never had a snapshot)
+     * - Submitted: local-only delete (manager's snapshot preserved)
+     */
+    async deleteMany(shiftIds: string[]): Promise<void> {
+        if (shiftIds.length === 0) return;
+
+        // Delete shift_sales first (no cascade in Supabase by default for this FK)
+        await supabase.from('shift_sales').delete().in('shift_id', shiftIds);
+
+        // Delete local shifts
+        const { error } = await supabase.from('shifts').delete().in('id', shiftIds);
+
         if (error) throw new Error(error.message);
     },
 };

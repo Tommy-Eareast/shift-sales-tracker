@@ -1,82 +1,100 @@
-import { useState, useEffect, useCallback } from "react";
-import type { User } from "@supabase/supabase-js";
-import { authService, type UserProfile } from "../services/authService";
+import { useState, useEffect, useCallback } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { authService, type UserProfile } from '../services/authService';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+    useEffect(() => {
+        let cancelled = false;
 
-    const loadSession = async () => {
-      setLoading(true);
-      try {
-        const currentUser = await authService.getCurrentUser();
-        if (cancelled) return;
-        setUser(currentUser);
-        if (currentUser) {
-          const prof = await authService.getProfile(currentUser.id);
-          if (cancelled) return;
-          setProfile(prof);
+        const loadSession = async () => {
+            setLoading(true);
+            try {
+                const currentUser = await authService.getCurrentUser();
+                if (cancelled) return;
+                setUser(currentUser);
+                if (currentUser) {
+                    const prof = await authService.getProfile(currentUser.id);
+                    if (cancelled) return;
+                    setProfile(prof);
+                }
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load session');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        loadSession();
+
+        const unsubscribe = authService.onAuthStateChange(async newUser => {
+            setUser(newUser);
+            if (newUser) {
+                const prof = await authService.getProfile(newUser.id);
+                setProfile(prof);
+            } else {
+                setProfile(null);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, []);
+
+    const loginWithPassword = useCallback(async (email: string, password: string) => {
+        setError(null);
+        try {
+            // Clear stale cache before login
+            localStorage.removeItem('cache:shifts_list');
+            localStorage.removeItem('cache:products_list');
+            localStorage.removeItem('cache:templates_list');
+            await authService.loginWithPassword(email, password);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Login failed');
+            throw err;
         }
-      } catch (err) {
-        if (!cancelled)
-          setError(
-            err instanceof Error ? err.message : "Failed to load session",
-          );
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+    }, []);
 
-    loadSession();
-
-    const unsubscribe = authService.onAuthStateChange(async (newUser) => {
-      setUser(newUser);
-      if (newUser) {
-        const prof = await authService.getProfile(newUser.id);
-        setProfile(prof);
-      } else {
+    const logout = useCallback(async () => {
+        await authService.logout();
+        setUser(null);
         setProfile(null);
-      }
-    });
+        localStorage.removeItem('cache:shifts_list');
+        localStorage.removeItem('cache:products_list');
+        localStorage.removeItem('cache:templates_list');
+    }, []);
 
-    return () => {
-      cancelled = true;
-      unsubscribe();
+    const updateDisplayName = useCallback(
+        async (newName: string) => {
+            if (!user) throw new Error('Not logged in');
+            await authService.updateDisplayName(user.id, newName);
+            // Refresh profile
+            const prof = await authService.getProfile(user.id);
+            setProfile(prof);
+        },
+        [user]
+    );
+
+    const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+        await authService.changePassword(currentPassword, newPassword);
+    }, []);
+
+    return {
+        user,
+        profile,
+        loading,
+        error,
+        isLoggedIn: !!user,
+        role: profile?.role || null,
+        loginWithPassword,
+        logout,
+        updateDisplayName,
+        changePassword,
     };
-  }, []);
-
-  const loginWithPassword = useCallback(
-    async (email: string, password: string) => {
-      setError(null);
-      try {
-        await authService.loginWithPassword(email, password);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Login failed");
-        throw err;
-      }
-    },
-    [],
-  );
-
-  const logout = useCallback(async () => {
-    await authService.logout();
-    setUser(null);
-    setProfile(null);
-  }, []);
-
-  return {
-    user,
-    profile,
-    loading,
-    error,
-    isLoggedIn: !!user,
-    role: profile?.role || null,
-    loginWithPassword,
-    logout,
-  };
 }

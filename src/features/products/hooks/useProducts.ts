@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Product } from '../../../types';
 import { productService } from '../services/productService';
+import { readCache, writeCache } from '../../../utils/cache';
+
+const CACHE_KEY_PRODUCTS = 'products_list';
 
 type ProductFormData = { brandMain: string; subCategory: string; fullName: string; price: number };
 
@@ -9,14 +12,24 @@ export function useProducts() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
+    const load = useCallback(async (isBackground = false) => {
+        if (!isBackground) {
+            const cached = readCache<Product[]>(CACHE_KEY_PRODUCTS);
+            if (cached) {
+                setProducts(cached.data);
+                setLoading(false);
+            }
+        }
+
         try {
             const data = await productService.getAll();
             setProducts(data);
+            writeCache(CACHE_KEY_PRODUCTS, data);
+            setError(null);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load products');
+            if (!isBackground) {
+                setError(err instanceof Error ? err.message : 'Failed to load products');
+            }
         } finally {
             setLoading(false);
         }
@@ -28,7 +41,6 @@ export function useProducts() {
         }, 0);
         return () => clearTimeout(timer);
     }, [load]);
-
     const distinctValues = useMemo(() => productService.getDistinctValues(products), [products]);
 
     const getSubCategorySuggestions = useCallback(
@@ -39,20 +51,19 @@ export function useProducts() {
     const add = useCallback(
         async (data: ProductFormData) => {
             await productService.add(data);
-            await load();
+            await load(true);
         },
         [load]
     );
 
     const update = useCallback(
         async (id: string, data: Partial<Product>) => {
-            // Optimistic update
             setProducts(prev => prev.map(p => (p.id === id ? { ...p, ...data } : p)));
             try {
                 await productService.update(id, data);
             } catch (err) {
-                console.error(err);
-                await load(); // Revert on error
+                console.error('Update failed:', err);
+                await load(true);
             }
         },
         [load]
@@ -60,13 +71,12 @@ export function useProducts() {
 
     const remove = useCallback(
         async (id: string) => {
-            // Optimistic update
             setProducts(prev => prev.filter(p => p.id !== id));
             try {
                 await productService.delete(id);
             } catch (err) {
-                console.error(err);
-                await load(); // Revert on error
+                console.error('Delete failed:', err);
+                await load(true);
             }
         },
         [load]
@@ -74,22 +84,20 @@ export function useProducts() {
 
     const reorder = useCallback(
         async (productIds: string[]) => {
-            // Optimistic update: immediately reorder local state
             setProducts(prev => {
                 const idMap = new Map(prev.map(p => [p.id, p]));
                 return productIds
-                    .map((id, index) => {
+                    .map((id, i) => {
                         const p = idMap.get(id);
-                        return p ? { ...p, sortOrder: index } : null;
+                        return p ? { ...p, sortOrder: i } : null;
                     })
                     .filter(Boolean) as Product[];
             });
-
             try {
                 await productService.reorder(productIds);
             } catch (err) {
-                console.error(err);
-                await load(); // Revert on error
+                console.error('Reorder failed:', err);
+                await load(true);
             }
         },
         [load]

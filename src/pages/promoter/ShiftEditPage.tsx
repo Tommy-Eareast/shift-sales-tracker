@@ -164,6 +164,13 @@ export default function ShiftEditPage() {
                                     {groupKey}
                                 </p>
                                 <div className="space-y-0.5">
+                                    {/* Column headers for this group */}
+                                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[10px] font-medium text-stone-400 uppercase tracking-wider px-1 pb-1">
+                                        <span>Item</span>
+                                        <span className="text-right w-8">Qty</span>
+                                        <span className="text-right min-w-[60px]">Unit</span>
+                                        <span className="text-right min-w-[65px]">Total</span>
+                                    </div>
                                     {items.map(({ product, count, revenue }) => {
                                         const displayName = product.fullName.startsWith(product.brandMain)
                                             ? product.fullName.slice(product.brandMain.length).trim()
@@ -171,13 +178,16 @@ export default function ShiftEditPage() {
                                         return (
                                             <div
                                                 key={product.id}
-                                                className="grid grid-cols-[1fr_auto_auto] gap-3 text-sm px-1 py-1"
+                                                className="grid grid-cols-[1fr_auto_auto_auto] gap-2 text-sm px-1 py-1"
                                             >
                                                 <span className="text-stone-700 truncate">{displayName}</span>
-                                                <span className="text-stone-600 text-right font-medium w-8 text-center">
+                                                <span className="text-stone-600 text-right font-medium w-8">
                                                     {count}
                                                 </span>
-                                                <span className="text-stone-600 text-right font-medium min-w-[60px]">
+                                                <span className="text-stone-500 text-right min-w-[60px]">
+                                                    ${product.price.toFixed(2)}
+                                                </span>
+                                                <span className="text-stone-700 text-right font-semibold min-w-[65px]">
                                                     ${revenue.toFixed(2)}
                                                 </span>
                                             </div>

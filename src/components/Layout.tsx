@@ -31,6 +31,9 @@ export default function Layout() {
     }, [isLoggedIn, isManager, loading, location.pathname, navigate]);
 
     const getActiveTab = () => {
+        // Profile is accessible from both roles — check first
+        if (location.pathname === '/profile') return '/profile';
+
         if (isManager) {
             if (location.pathname.startsWith('/manager/sales')) return '/manager/sales';
             if (location.pathname.startsWith('/manager/export')) return '/manager/export';
@@ -71,12 +74,14 @@ export default function Layout() {
                                     <p className="text-[10px] text-stone-400 capitalize">{profile.role}</p>
                                 </div>
                             )}
-                            <div
-                                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                            <button
+                                onClick={() => navigate('/profile')}
+                                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-transform active:scale-95"
                                 style={{ background: 'linear-gradient(135deg, #5b8c7a, #7eb8a0)' }}
+                                aria-label="Open profile"
                             >
                                 {profile ? profile.display_name.charAt(0).toUpperCase() : '?'}
-                            </div>
+                            </button>
                             {isLoggedIn && (
                                 <button
                                     onClick={() => setShowLogoutConfirm(true)}

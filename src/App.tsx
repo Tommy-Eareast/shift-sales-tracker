@@ -6,6 +6,7 @@ import ShiftListPage from './pages/promoter/ShiftListPage';
 import ShiftEditPage from './pages/promoter/ShiftEditPage';
 import PromoterExportPage from './pages/promoter/PromoterExportPage';
 import HistoryPage from './pages/promoter/HistoryPage';
+import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 const SalesPage = lazy(() => import('./pages/manager/SalesPage'));
@@ -67,6 +68,9 @@ function App() {
                             </Suspense>
                         }
                     />
+
+                    {/* Shared routes (both roles) */}
+                    <Route path="/profile" element={<ProfilePage />} />
 
                     {/* Catch-all 404 */}
                     <Route path="*" element={<NotFoundPage />} />

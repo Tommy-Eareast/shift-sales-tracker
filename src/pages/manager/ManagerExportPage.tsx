@@ -7,6 +7,7 @@ import { AlertModal } from '../../components/ui/AlertModal';
 import { WeekSelector } from '../../features/manager/components/WeekSelector';
 import { getWeekRange, formatDate, addDays } from '../../utils/week';
 import type { ShiftTemplate } from '../../types';
+import { formatDateForDisplay } from '../../utils/date';
 
 export default function ManagerExportPage() {
     const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
@@ -138,7 +139,7 @@ export default function ManagerExportPage() {
                 <p className="text-xs text-stone-400 mb-4">
                     Exporting:{' '}
                     <span className="font-mono">
-                        {effectiveStart} to {effectiveEnd}
+                        {formatDateForDisplay(effectiveStart)} to {formatDateForDisplay(effectiveEnd)}
                     </span>
                     {profile && profile.profileId !== 'default' && (
                         <span className="ml-2 text-emerald-600">({profile.displayName} format)</span>

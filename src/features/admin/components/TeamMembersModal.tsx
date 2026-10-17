@@ -30,8 +30,13 @@ export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove 
             setFormError('Please fill in all fields');
             return;
         }
+        if (form.tempPassword.length < 8) {
+            setFormError('Temporary password must be at least 8 characters');
+            return;
+        }
         setSaving(true);
         setFormError('');
+
         try {
             await onCreate(form.email, form.displayName, form.role, form.tempPassword);
             setShowForm(false);
@@ -142,7 +147,7 @@ export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove 
                                 type="text"
                                 value={form.tempPassword}
                                 onChange={e => setForm({ ...form, tempPassword: e.target.value })}
-                                placeholder="e.g., ChangeMe123"
+                                placeholder="At least 8 characters"
                                 className={inputClass}
                             />
                         </div>

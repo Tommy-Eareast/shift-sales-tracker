@@ -5,16 +5,13 @@ import { useTemplates } from '../../features/templates/hooks/useTemplates';
 import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { AlertModal } from '../../components/ui/AlertModal';
 import { CopyButton } from '../../components/ui/CopyButton';
+import { CheckboxCard } from '../../components/ui/CheckboxCard';
 import { DeleteIcon } from '../../components/ui/icons';
 import type { ShiftRecord } from '../../types';
 
-/**
- * Days threshold — matches the manager's Sales page window.
- * Shifts older than this and submitted move into History.
- */
 const HISTORY_THRESHOLD_DAYS = 14;
 
 function isWithinDays(dateString: string, days: number): boolean {
@@ -32,18 +29,18 @@ function getMonthKey(dateString: string): string {
 
 export default function HistoryPage() {
     const navigate = useNavigate();
-    const { shifts, summaries, loading, error, remove } = useShifts();
+    const { shifts, summaries, loading, error, remove, removeMany } = useShifts();
     const { templates } = useTemplates();
 
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-    const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-    // Filter: submitted only, older than threshold
     const archivedShifts = useMemo(() => {
         return shifts.filter(s => s.status === 'submitted' && !isWithinDays(s.recordDate, HISTORY_THRESHOLD_DAYS));
     }, [shifts]);
 
-    // Group by month, sorted newest first
     const groupedByMonth = useMemo(() => {
         const grouped: Record<string, ShiftRecord[]> = {};
         for (const shift of archivedShifts) {
@@ -51,13 +48,10 @@ export default function HistoryPage() {
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(shift);
         }
-        // Sort within each month: newest first
         for (const key of Object.keys(grouped)) {
             grouped[key].sort((a, b) => b.recordDate.localeCompare(a.recordDate));
         }
-        // Return as sorted array of [monthKey, shifts]
         return Object.entries(grouped).sort((a, b) => {
-            // Sort months by year then month (newest first)
             const [aMonth, aYear] = a[0].split(' ');
             const [bMonth, bYear] = b[0].split(' ');
             if (aYear !== bYear) return parseInt(bYear) - parseInt(aYear);
@@ -70,43 +64,70 @@ export default function HistoryPage() {
         if (!deleteTarget) return;
         try {
             await remove(deleteTarget.id);
-        } catch (e) {
-            setAlertInfo({ title: 'Error', message: e instanceof Error ? e.message : 'Failed' });
+        } catch {
+            /* silent */
         }
         setDeleteTarget(null);
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const exitSelectMode = () => {
+        setSelectMode(false);
+        setSelectedIds(new Set());
+    };
+
+    const handleBulkDelete = async () => {
+        await removeMany([...selectedIds]);
+        setBulkDeleteOpen(false);
+        exitSelectMode();
+    };
+
+    const getBulkDeletePreview = (): string => {
+        const selectedShifts = archivedShifts.filter(s => selectedIds.has(s.shiftId));
+        selectedShifts.sort((a, b) => b.recordDate.localeCompare(a.recordDate));
+        return selectedShifts
+            .map(s => {
+                const t = templates.find(x => x.templateId === s.templateId);
+                return `[Submitted] ${s.shiftDisplayName} — ${t?.templateName || 'Unknown'}`;
+            })
+            .join('\n');
     };
 
     const renderShiftCard = (shift: ShiftRecord) => {
         const t = templates.find(x => x.templateId === shift.templateId);
         const s = summaries[shift.shiftId];
-        return (
-            <Card key={shift.shiftId} interactive onClick={() => navigate(`/shift/${shift.shiftId}`)}>
-                <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-2.5">
-                            <span
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: '#10b981' }}
-                            />
-                            <h3 className="font-semibold text-stone-900 text-sm">{shift.shiftDisplayName}</h3>
-                        </div>
-                        <p className="text-xs text-stone-400 mt-1 ml-[18px]">{t?.templateName || 'Unknown'}</p>
-                        {s && (
-                            <div className="flex items-center gap-4 mt-2 ml-[18px]">
-                                <span className="text-xs text-stone-500">
-                                    <span className="font-semibold text-stone-700">{s.totalCount}</span> sold
-                                </span>
-                                <span className="text-xs font-semibold" style={{ color: '#5b8c7a' }}>
-                                    ${s.totalRevenue}
-                                </span>
-                            </div>
-                        )}
+        const isSelected = selectedIds.has(shift.shiftId);
+
+        const cardContent = (
+            <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#10b981' }} />
+                        <h3 className="font-semibold text-stone-900 text-sm truncate">{shift.shiftDisplayName}</h3>
                     </div>
-                    <div className="flex items-center gap-0.5 ml-2">
-                        <CopyButton
-                            shiftId={shift.shiftId}
-                            onError={msg => setAlertInfo({ title: 'Error', message: msg })}
-                        />
+                    <p className="text-xs text-stone-400 mt-1 ml-[18px] truncate">{t?.templateName || 'Unknown'}</p>
+                    {s && (
+                        <div className="flex items-center gap-4 mt-2 ml-[18px]">
+                            <span className="text-xs text-stone-500 whitespace-nowrap">
+                                <span className="font-semibold text-stone-700">{s.totalCount}</span> sold
+                            </span>
+                            <span className="text-xs font-semibold whitespace-nowrap" style={{ color: '#5b8c7a' }}>
+                                ${s.totalRevenue}
+                            </span>
+                        </div>
+                    )}
+                </div>
+                {!selectMode && (
+                    <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
+                        <CopyButton shiftId={shift.shiftId} />
                         <button
                             onClick={e => {
                                 e.stopPropagation();
@@ -117,7 +138,21 @@ export default function HistoryPage() {
                             <DeleteIcon className="w-4 h-4" />
                         </button>
                     </div>
-                </div>
+                )}
+            </div>
+        );
+
+        if (selectMode) {
+            return (
+                <CheckboxCard key={shift.shiftId} selected={isSelected} onClick={() => toggleSelection(shift.shiftId)}>
+                    <Card className="border-0 shadow-none">{cardContent}</Card>
+                </CheckboxCard>
+            );
+        }
+
+        return (
+            <Card key={shift.shiftId} interactive onClick={() => navigate(`/shift/${shift.shiftId}`)}>
+                {cardContent}
             </Card>
         );
     };
@@ -140,20 +175,32 @@ export default function HistoryPage() {
     }
 
     return (
-        <div>
-            <div className="mb-6">
-                <h2 className="text-lg font-semibold text-stone-900 tracking-tight">History</h2>
-                <p className="text-xs text-stone-400 mt-1">Submissions older than {HISTORY_THRESHOLD_DAYS} days</p>
+        <div className={selectMode ? 'pb-24' : ''}>
+            <div className="mb-6 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-semibold text-stone-900 tracking-tight">History</h2>
+                    <p className="text-xs text-stone-400 mt-1">Submissions older than {HISTORY_THRESHOLD_DAYS} days</p>
+                </div>
+                {archivedShifts.length > 0 &&
+                    (selectMode ? (
+                        <Button variant="secondary" size="md" onClick={exitSelectMode}>
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Button variant="secondary" size="md" onClick={() => setSelectMode(true)}>
+                            Select
+                        </Button>
+                    ))}
             </div>
 
             {archivedShifts.length === 0 ? (
                 <EmptyState
                     icon="📚"
                     title="No archived shifts yet"
-                    description="Shifts older than 14 days will appear here"
+                    description={`Shifts older than ${HISTORY_THRESHOLD_DAYS} days will appear here`}
                 />
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-6">
                     {groupedByMonth.map(([monthKey, shiftsInMonth], index) => (
                         <div key={monthKey}>
                             <div className={`flex items-center gap-3 mb-4 ${index > 0 ? 'pt-4' : ''}`}>
@@ -171,6 +218,28 @@ export default function HistoryPage() {
                 </div>
             )}
 
+            {/* Bulk action bar */}
+            {selectMode && (
+                <div
+                    className="fixed bottom-[70px] left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-stone-200/60 z-10"
+                    style={{ boxShadow: '0 -2px 12px rgba(0,0,0,0.04)' }}
+                >
+                    <div className="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between gap-3">
+                        <p className="text-sm text-stone-600">
+                            {selectedIds.size} shift{selectedIds.size !== 1 ? 's' : ''} selected
+                        </p>
+                        <Button
+                            variant="danger"
+                            size="md"
+                            onClick={() => setBulkDeleteOpen(true)}
+                            disabled={selectedIds.size === 0}
+                        >
+                            Delete {selectedIds.size || ''} Shift{selectedIds.size !== 1 ? 's' : ''}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <ConfirmModal
                 isOpen={deleteTarget !== null}
                 onCancel={() => setDeleteTarget(null)}
@@ -181,11 +250,14 @@ export default function HistoryPage() {
                 danger
             />
 
-            <AlertModal
-                isOpen={alertInfo !== null}
-                title={alertInfo?.title || ''}
-                message={alertInfo?.message || ''}
-                onClose={() => setAlertInfo(null)}
+            <ConfirmModal
+                isOpen={bulkDeleteOpen}
+                onCancel={() => setBulkDeleteOpen(false)}
+                onConfirm={handleBulkDelete}
+                title={`Delete ${selectedIds.size} Shift${selectedIds.size !== 1 ? 's' : ''}`}
+                message={`${getBulkDeletePreview()}\n\nDraft shifts will be permanently lost. Submitted shifts will be removed from your history, but your manager's records are not affected.`}
+                confirmLabel="Delete All"
+                danger
             />
         </div>
     );

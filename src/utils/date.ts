@@ -31,3 +31,14 @@ export function fromISODate(isoString: string): Date {
     const [year, month, day] = isoString.split('-');
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 }
+
+/**
+ * Format an ISO date (YYYY-MM-DD) as DD/MM/YYYY for user display.
+ * Returns the input unchanged if it doesn't match the expected format.
+ */
+export function formatDateForDisplay(isoDate: string): string {
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+}

@@ -1,20 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ShiftTemplate } from '../../../types';
 import { templateService } from '../services/templateService';
+import { readCache, writeCache } from '../../../utils/cache';
+
+const CACHE_KEY_TEMPLATES = 'templates_list';
 
 export function useTemplates() {
     const [templates, setTemplates] = useState<ShiftTemplate[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
+    const load = useCallback(async (isBackground = false) => {
+        if (!isBackground) {
+            const cached = readCache<ShiftTemplate[]>(CACHE_KEY_TEMPLATES);
+            if (cached) {
+                setTemplates(cached.data);
+                setLoading(false);
+            }
+        }
+
         try {
             const data = await templateService.getAll();
             setTemplates(data);
+            writeCache(CACHE_KEY_TEMPLATES, data);
+            setError(null);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load templates');
+            if (!isBackground) {
+                setError(err instanceof Error ? err.message : 'Failed to load templates');
+            }
         } finally {
             setLoading(false);
         }
@@ -30,7 +43,7 @@ export function useTemplates() {
     const add = useCallback(
         async (data: { templateName: string; brandList: string[] }) => {
             await templateService.add(data);
-            await load();
+            await load(true);
         },
         [load]
     );
@@ -42,7 +55,7 @@ export function useTemplates() {
                 await templateService.update(templateId, data);
             } catch (err) {
                 console.error('Update failed:', err);
-                await load();
+                await load(true);
             }
         },
         [load]
@@ -55,7 +68,7 @@ export function useTemplates() {
                 await templateService.delete(templateId);
             } catch (err) {
                 console.error('Delete failed:', err);
-                await load();
+                await load(true);
             }
         },
         [load]
@@ -66,9 +79,9 @@ export function useTemplates() {
             setTemplates(prev => {
                 const idMap = new Map(prev.map(t => [t.templateId, t]));
                 return templateIds
-                    .map((id, index) => {
+                    .map((id, i) => {
                         const t = idMap.get(id);
-                        return t ? { ...t, sortOrder: index } : null;
+                        return t ? { ...t, sortOrder: i } : null;
                     })
                     .filter(Boolean) as ShiftTemplate[];
             });
@@ -76,7 +89,7 @@ export function useTemplates() {
                 await templateService.reorder(templateIds);
             } catch (err) {
                 console.error('Reorder failed:', err);
-                await load();
+                await load(true);
             }
         },
         [load]

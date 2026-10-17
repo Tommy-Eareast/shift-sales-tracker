@@ -41,7 +41,7 @@ export function ConfirmModal({
     return (
         <Modal isOpen={isOpen} onClose={onCancel} title={title} persistent>
             <div className="space-y-4">
-                <p className="text-sm text-stone-600">{message}</p>
+                <p className="text-sm text-stone-600 whitespace-pre-line">{message}</p>
                 <div className="flex gap-3">
                     <Button variant="secondary" size="lg" fullWidth onClick={onCancel}>
                         {cancelLabel}
