@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { ConfirmModal } from '../../../components/ui/ConfirmModal';
+import { inputClass } from '../../../utils/styles';
 import type { UserProfile } from '../../auth/services/authService';
 
 type Props = {
@@ -11,9 +12,6 @@ type Props = {
     onCreate: (email: string, displayName: string, role: 'promoter' | 'manager', tempPassword: string) => Promise<void>;
     onRemove: (userId: string) => Promise<void>;
 };
-
-const inputClass =
-    'w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-900 placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-stone-300 transition-all';
 
 export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove }: Props) {
     const [showForm, setShowForm] = useState(false);
@@ -49,6 +47,13 @@ export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove 
         if (!deleteTarget) return;
         await onRemove(deleteTarget.id);
         setDeleteTarget(null);
+    };
+
+    const handleFormKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !saving) {
+            e.preventDefault();
+            handleCreate();
+        }
     };
 
     return (
@@ -93,7 +98,7 @@ export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove 
                     )}
                 </div>
 
-                {/* Bottom buttons */}
+                {/* Add member form OR bottom buttons */}
                 {!showForm ? (
                     <div className="flex gap-2">
                         <Button variant="secondary" size="lg" fullWidth onClick={onClose}>
@@ -104,7 +109,7 @@ export function TeamMembersModal({ isOpen, onClose, members, onCreate, onRemove 
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-3" onKeyDown={handleFormKeyDown}>
                         <div>
                             <label className="block text-xs font-medium text-stone-500 mb-1 uppercase tracking-wider">
                                 Display Name

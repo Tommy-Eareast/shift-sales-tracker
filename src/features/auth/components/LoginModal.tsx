@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { inputClass } from '../../../utils/styles';
@@ -10,6 +10,7 @@ export function LoginModal({ isOpen, onClose, onLogin }: Props) {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const passwordRef = useRef<HTMLInputElement>(null);
 
     const handleLogin = async () => {
         if (!email.trim() || !password) {
@@ -27,8 +28,28 @@ export function LoginModal({ isOpen, onClose, onLogin }: Props) {
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Enter' && !loading) {
+                e.preventDefault();
+                handleLogin();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [isOpen, loading, email, password]);
+
+    const handleEmailKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
+            passwordRef.current?.focus();
+        }
+    };
+
+    const handlePasswordKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !loading) {
+            e.preventDefault();
             handleLogin();
         }
     };
@@ -46,8 +67,10 @@ export function LoginModal({ isOpen, onClose, onLogin }: Props) {
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
+                        onKeyDown={handleEmailKeyDown}
                         placeholder="you@company.com"
                         className={inputClass}
+                        autoFocus
                     />
                 </div>
 
@@ -56,10 +79,11 @@ export function LoginModal({ isOpen, onClose, onLogin }: Props) {
                         Password
                     </label>
                     <input
+                        ref={passwordRef}
                         type="password"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={handlePasswordKeyDown}
                         placeholder="••••••••"
                         className={inputClass}
                     />

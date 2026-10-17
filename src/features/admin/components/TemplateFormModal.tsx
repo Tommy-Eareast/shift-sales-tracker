@@ -14,6 +14,13 @@ type Props = {
 };
 
 export function TemplateFormModal({ isOpen, onClose, editingTemplate, form, onChange, error, brands, onSave }: Props) {
+    const handleTemplateNameKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            onSave();
+        }
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={editingTemplate ? 'Edit Template' : 'New Template'} persistent>
             {error && (
@@ -30,6 +37,7 @@ export function TemplateFormModal({ isOpen, onClose, editingTemplate, form, onCh
                         type="text"
                         value={form.templateName}
                         onChange={e => onChange({ ...form, templateName: e.target.value })}
+                        onKeyDown={handleTemplateNameKeyDown}
                         className={inputClass}
                     />
                 </div>

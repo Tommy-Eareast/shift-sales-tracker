@@ -7,17 +7,12 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { AlertModal } from '../../components/ui/AlertModal';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { EditIcon, DeleteIcon } from '../../components/ui/icons';
 import { NewShiftModal } from '../../features/shifts/components/NewShiftModal';
 import { EditShiftModal } from '../../features/shifts/components/EditShiftModal';
 import type { ShiftRecord } from '../../types';
 
-/**
- * Days threshold — matches the manager's Sales page window.
- * Submitted shifts older than this move to the History page.
- */
 const HISTORY_THRESHOLD_DAYS = 14;
 
 function isWithinDays(dateString: string, days: number): boolean {
@@ -39,15 +34,17 @@ export default function ShiftListPage() {
     const [date, setDate] = useState('');
     const [start, setStart] = useState('07:00');
     const [end, setEnd] = useState('12:00');
+    const [newShiftError, setNewShiftError] = useState('');
+    const [editShiftError, setEditShiftError] = useState('');
 
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-    const [alertInfo, setAlertInfo] = useState<{ title: string; message: string } | null>(null);
 
     const openNew = () => {
         setTemplateId(templates[0]?.templateId || '');
         setDate(new Date().toISOString().split('T')[0]);
         setStart('07:00');
         setEnd('12:00');
+        setNewShiftError('');
         setShowNew(true);
     };
 
@@ -58,26 +55,29 @@ export default function ShiftListPage() {
             setDate(s.recordDate);
             setStart(s.shiftTimeStart);
             setEnd(s.shiftTimeEnd);
+            setEditShiftError('');
             setShowEdit(true);
         }
     };
 
     const handleCreate = async () => {
+        setNewShiftError('');
         try {
             await create(templateId, date, start, end);
             setShowNew(false);
         } catch (e) {
-            setAlertInfo({ title: 'Error', message: e instanceof Error ? e.message : 'Failed to create shift' });
+            setNewShiftError(e instanceof Error ? e.message : 'Failed to create shift');
         }
     };
 
     const handleUpdate = async () => {
         if (!editingId) return;
+        setEditShiftError('');
         try {
             await update(editingId, { recordDate: date, shiftTimeStart: start, shiftTimeEnd: end });
             setShowEdit(false);
         } catch (e) {
-            setAlertInfo({ title: 'Error', message: e instanceof Error ? e.message : 'Failed to update shift' });
+            setEditShiftError(e instanceof Error ? e.message : 'Failed to update shift');
         }
     };
 
@@ -85,13 +85,12 @@ export default function ShiftListPage() {
         if (!deleteTarget) return;
         try {
             await remove(deleteTarget.id);
-        } catch (e) {
-            setAlertInfo({ title: 'Error', message: e instanceof Error ? e.message : 'Failed' });
+        } catch {
+            /* silent */
         }
         setDeleteTarget(null);
     };
 
-    // Split: drafts always shown; submitted only if within threshold
     const draftShifts = shifts.filter(s => s.status === 'draft');
     const recentSubmittedShifts = shifts.filter(
         s => s.status === 'submitted' && isWithinDays(s.recordDate, HISTORY_THRESHOLD_DAYS)
@@ -129,10 +128,7 @@ export default function ShiftListPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-0.5 ml-2">
-                        <CopyButton
-                            shiftId={shift.shiftId}
-                            onError={msg => setAlertInfo({ title: 'Error', message: msg })}
-                        />
+                        <CopyButton shiftId={shift.shiftId} />
                         {isDraft && (
                             <button
                                 onClick={e => {
@@ -178,7 +174,6 @@ export default function ShiftListPage() {
 
     return (
         <div>
-            {/* Stats Cards */}
             <div className="grid grid-cols-2 gap-3 mb-6">
                 <Card>
                     <p className="text-xs font-medium text-stone-400 uppercase tracking-wider">Submitted / Total</p>
@@ -248,6 +243,7 @@ export default function ShiftListPage() {
                 recordDate={date}
                 timeStart={start}
                 timeEnd={end}
+                error={newShiftError}
                 onTemplateChange={setTemplateId}
                 onDateChange={setDate}
                 onTimeStartChange={setStart}
@@ -265,6 +261,7 @@ export default function ShiftListPage() {
                 recordDate={date}
                 timeStart={start}
                 timeEnd={end}
+                error={editShiftError}
                 onDateChange={setDate}
                 onTimeStartChange={setStart}
                 onTimeEndChange={setEnd}
@@ -279,13 +276,6 @@ export default function ShiftListPage() {
                 message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
                 confirmLabel="Delete"
                 danger
-            />
-
-            <AlertModal
-                isOpen={alertInfo !== null}
-                title={alertInfo?.title || ''}
-                message={alertInfo?.message || ''}
-                onClose={() => setAlertInfo(null)}
             />
         </div>
     );

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { inputClass } from '../../../utils/styles';
@@ -9,6 +10,7 @@ type Props = {
     recordDate: string;
     timeStart: string;
     timeEnd: string;
+    error: string;
     onDateChange: (date: string) => void;
     onTimeStartChange: (time: string) => void;
     onTimeEndChange: (time: string) => void;
@@ -22,14 +24,33 @@ export function EditShiftModal({
     recordDate,
     timeStart,
     timeEnd,
+    error,
     onDateChange,
     onTimeStartChange,
     onTimeEndChange,
     onUpdate,
 }: Props) {
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                onUpdate();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [isOpen, onUpdate]);
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Edit Shift" subtitle={templateName} persistent>
             <div className="space-y-4">
+                {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                        <p className="text-sm text-red-600">{error}</p>
+                    </div>
+                )}
+
                 <div>
                     <label className="block text-xs font-medium text-stone-500 mb-1.5 uppercase tracking-wider">
                         Date

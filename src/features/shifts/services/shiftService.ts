@@ -255,28 +255,40 @@ export const shiftService = {
         const userId = userData.user?.id;
         if (!userId) throw new Error('Not logged in');
 
-        await shiftSubmitService.createSnapshot({
-            shiftId,
-            userId,
-            templateId: shift.templateId,
-            templateName: (templateData as SupabaseTemplateRow | null)?.name || 'Unknown',
-            recordDate: shift.recordDate,
-            shiftDisplayName: shift.shiftDisplayName,
-            shiftTimeStart: shift.shiftTimeStart,
-            shiftTimeEnd: shift.shiftTimeEnd,
-            note,
-            summary,
-            sales,
-        });
-
+        // Create snapshot — may fail if offline
+        try {
+            await shiftSubmitService.createSnapshot({
+                shiftId,
+                userId,
+                templateId: shift.templateId,
+                templateName: (templateData as SupabaseTemplateRow | null)?.name || 'Unknown',
+                recordDate: shift.recordDate,
+                shiftDisplayName: shift.shiftDisplayName,
+                shiftTimeStart: shift.shiftTimeStart,
+                shiftTimeEnd: shift.shiftTimeEnd,
+                note,
+                summary,
+                sales,
+            });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : '';
+            if (message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('fetch')) {
+                throw new Error('Cannot reach server. Please check your internet connection.', { cause: err });
+            }
+            throw err;
+        }
+        // Mark shift as submitted — may also fail
         const { error: updateError } = await supabase
             .from('shifts')
             .update({ status: 'submitted', note, submitted_at: new Date().toISOString() })
             .eq('id', shiftId);
 
-        if (updateError) throw new Error(updateError.message);
+        if (updateError) {
+            // Snapshot exists but status not updated — inconsistent state.
+            // For now, throw. Could add retry/rollback in v2.
+            throw new Error(`Shift submitted but status not updated: ${updateError.message}`);
+        }
     },
-
     async delete(shiftId: string): Promise<void> {
         const { error } = await supabase.from('shifts').delete().eq('id', shiftId);
         if (error) throw new Error(error.message);

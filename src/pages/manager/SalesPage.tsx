@@ -32,7 +32,7 @@ export default function SalesPage() {
     const showSkeleton = loading && !hasLoadedOnce;
     const isSwitching = loading && hasLoadedOnce;
 
-    // Compute recent dates (within 14 days) and older dates separately
+    // Split recent vs older dates
     const { recentDates, olderDates } = useMemo(() => {
         const fourteenDaysAgo = new Date();
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
@@ -43,12 +43,22 @@ export default function SalesPage() {
         return { recentDates: recent, olderDates: older };
     }, [availableDates]);
 
-    // Dates shown in the tab row
-    const visibleDates = showAllDates ? [...recentDates, ...olderDates] : recentDates;
+    // Auto-select latest date: prefer recent, fall back to older if no recent exists
+    useEffect(() => {
+        if (selectedDate) return;
+        if (recentDates.length > 0) {
+            setSelectedDate(recentDates[0]);
+        } else if (olderDates.length > 0) {
+            setSelectedDate(olderDates[0]);
+        }
+    }, [recentDates, olderDates, selectedDate, setSelectedDate]);
 
-    // Toggle visibility: show if there are older dates OR if we're already showing all
+    const visibleDates = showAllDates ? [...recentDates, ...olderDates] : recentDates;
     const hasOlderDates = olderDates.length > 0;
     const showToggle = hasOlderDates || showAllDates;
+
+    // Detect "showing old date only" state (for info banner)
+    const isShowingOldOnly = recentDates.length === 0 && olderDates.length > 0 && !showAllDates;
 
     if (error) {
         return <ErrorState message={error} />;
@@ -113,6 +123,16 @@ export default function SalesPage() {
                             <p className="text-stone-400 text-sm">No submissions for this template yet.</p>
                         ) : (
                             <>
+                                {/* Info banner: only older dates exist */}
+                                {isShowingOldOnly && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                                        <p className="text-xs text-amber-700">
+                                            No submissions in the last 14 days. Showing the most recent submission from{' '}
+                                            <span className="font-semibold">{olderDates[0]}</span>.
+                                        </p>
+                                    </div>
+                                )}
+
                                 {/* Date Tabs */}
                                 <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
                                     {visibleDates.map(date => (

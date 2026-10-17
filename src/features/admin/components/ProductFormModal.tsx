@@ -27,6 +27,13 @@ export function ProductFormModal({
     subCategorySuggestions,
     onSave,
 }: Props) {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            onSave();
+        }
+    };
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={editingProduct ? 'Edit Product' : 'Add Product'} persistent>
             {error && (
@@ -57,6 +64,7 @@ export function ProductFormModal({
                         type="text"
                         value={form.fullName}
                         onChange={e => onChange({ ...form, fullName: e.target.value })}
+                        onKeyDown={handleKeyDown}
                         className={inputClass}
                     />
                 </div>
@@ -68,6 +76,7 @@ export function ProductFormModal({
                         type="number"
                         value={form.price || ''}
                         onChange={e => onChange({ ...form, price: parseFloat(e.target.value) || 0 })}
+                        onKeyDown={handleKeyDown}
                         step="0.01"
                         min="0"
                         className={inputClass}
